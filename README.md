@@ -103,13 +103,27 @@ npx serve .
 
 ## 5. 部署到 GitHub Pages
 
+**方式一：常规 git 推送**
+
 ```bash
-git init && git add . && git commit -m "feat: DataFlow Lab"
+git init -b main && git add . && git commit -m "feat: DataFlow Lab"
 gh repo create dataflow-lab --public --source=. --remote=origin --push
 gh api --method POST /repos/<用户名>/dataflow-lab/pages \
-  -f "source[branch]=main" -f "source[path]=/"
-# 稍等片刻：https://<用户名>.github.io/dataflow-lab/
+  -f "source[branch]=main" -f "source[path]=/"   # 或直接在 Settings → Pages 选择 main 分支
 ```
+
+**方式二：只走 GitHub REST API（备用通道）**
+
+若所在网络无法直连 `github.com:443`（`git push` 超时 / 连接被重置），可改用只依赖
+`api.github.com` 的通道，把工作区内容直接构建成一次提交推送到 `main`，并自动开启 Pages：
+
+```bash
+gh auth login                                  # 需要 repo 权限
+node tools/publish-github-api.mjs <用户名>/dataflow-lab
+```
+
+**本站已部署地址：<https://wangling1206.github.io/dataflow-lab/>**
+（仓库：<https://github.com/WangLing1206/dataflow-lab>）
 
 ---
 
@@ -153,7 +167,7 @@ gh api --method POST /repos/<用户名>/dataflow-lab/pages \
 
 | 交付项 | 说明 |
 |---|---|
-| 网站链接 | GitHub Pages 地址（见第 5 节，部署后填写） |
+| 网站链接 | <https://wangling1206.github.io/dataflow-lab/> |
 | 源代码 | `DataFlow-Lab-源码.zip`（不含 node_modules，纯静态资源） |
 | 视频 | `docs/video/DataFlow-Lab-demo.webm`（3 分 37 秒，1280×760，含字幕与讲解要点；配套讲解稿：`docs/视频讲解稿.md`） |
 | 文档 | `docs/亮点说明文档.md` |
