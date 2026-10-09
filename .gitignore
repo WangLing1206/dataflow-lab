@@ -1,0 +1,10 @@
+# 临时文件 / 录屏产物
+.tmp-*
+node_modules/
+package-lock.json
+*.zip
+
+# 系统
+Thumbs.db
+.DS_Store
+desktop.ini

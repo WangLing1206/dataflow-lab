@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>DataFlow Lab · 可视化数据分析实验室</title>
+<meta name="description" content="以动画方式可视化演示 pandas 风格的数据分析全过程：逐步呈现数据从原始状态到处理完成的每个环节。" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230b1222'/%3E%3Cpath d='M5 24 L11 13 L17 19 L27 6' fill='none' stroke='%2335e0e8' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E" />
+<link rel="stylesheet" href="assets/css/main.css" />
+</head>
+<body>
+<div class="bg-grid" aria-hidden="true"></div>
+<div class="bg-glow" aria-hidden="true"></div>
+
+<header class="topbar">
+  <div class="brand">
+    <div class="brand-mark">
+      <svg viewBox="0 0 32 32" aria-hidden="true">
+        <path d="M4 24 L11 13 L17 19 L28 6" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="11" cy="13" r="2.6" fill="currentColor"/>
+        <circle cx="17" cy="19" r="2.6" fill="currentColor"/>
+      </svg>
+    </div>
+    <div class="brand-text">
+      <h1>DataFlow&nbsp;Lab</h1>
+      <p>可视化数据分析实验室 · 让每一步处理都看得见</p>
+    </div>
+  </div>
+
+  <div class="topbar-right">
+    <div class="dataset-picker">
+      <label for="datasetSelect">数据集</label>
+      <select id="datasetSelect" title="切换内置数据集"></select>
+    </div>
+    <button class="btn btn-ghost" id="btnImport" title="导入 CSV / JSON / TSV">
+      <span class="ico">⬆</span> 导入数据
+    </button>
+    <input type="file" id="fileInput" accept=".csv,.tsv,.txt,.json" hidden />
+    <button class="btn btn-ghost" id="btnExport" title="导出当前结果 CSV">
+      <span class="ico">⬇</span> 导出
+    </button>
+    <button class="btn btn-accent" id="btnDemo" title="自动播放一段完整的数据分析演示">
+      <span class="ico">▶</span> 自动演示
+    </button>
+    <button class="btn btn-icon" id="btnHelp" title="使用说明">?</button>
+  </div>
+</header>
+
+<main class="layout">
+  <!-- ================= 左侧：数据源 + 操作库 ================= -->
+  <aside class="panel panel-left">
+    <section class="card">
+      <div class="card-head">
+        <h2><span class="dot dot-cyan"></span>数据源</h2>
+        <span class="chip chip-soft" id="dsShape">—</span>
+      </div>
+      <div class="card-body">
+        <p class="muted small" id="dsDesc">选择一个内置数据集，或导入自己的 CSV / JSON 数据。</p>
+        <div class="mini-stats" id="dsStats"></div>
+        <div class="row-btns">
+          <button class="btn btn-ghost btn-sm" id="btnPaste">粘贴数据</button>
+          <button class="btn btn-ghost btn-sm" id="btnReload">重置数据</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="card grow">
+      <div class="card-head">
+        <h2><span class="dot dot-violet"></span>操作库</h2>
+        <span class="muted small">点击加入流水线</span>
+      </div>
+      <div class="card-body">
+        <div id="opLibrary" class="op-library"></div>
+      </div>
+    </section>
+  </aside>
+
+  <!-- ================= 中间：流水线 + 舞台 ================= -->
+  <section class="stage-col">
+    <div class="pipeline-wrap">
+      <div class="pipeline-head">
+        <h2><span class="dot dot-green"></span>分析流水线</h2>
+        <div class="pipeline-actions">
+          <button class="btn btn-primary btn-sm" id="btnRunAll"><span class="ico">▶</span> 运行全部</button>
+          <button class="btn btn-ghost btn-sm" id="btnStepOnce"><span class="ico">⏭</span> 只跑下一步</button>
+          <button class="btn btn-ghost btn-sm" id="btnClearOps">清空步骤</button>
+        </div>
+      </div>
+      <div id="pipeline" class="pipeline"></div>
+    </div>
+
+    <div class="stage card">
+      <div class="narration" id="narration">
+        <div class="narration-line">
+          <span class="narration-badge" id="narrBadge">待运行</span>
+          <span class="narration-text" id="narrTitle">准备就绪：点击「运行全部」，观察数据一步步被处理</span>
+        </div>
+        <div class="narration-sub" id="narrSub">每一步都会展示内部的寻找、比较与删除逻辑，而不是直接给出结果。</div>
+        <div class="narration-progress"><i id="narrProgress"></i></div>
+      </div>
+
+      <div class="stage-body">
+        <div class="table-wrap" id="tableWrap">
+          <div class="table-scroll" id="tableScroll">
+            <!-- 表格由 TableView 渲染 -->
+          </div>
+          <div class="table-empty" id="tableEmpty" hidden>
+            <div class="empty-emoji">🗂️</div>
+            <p>还没有数据，请先选择或导入数据集</p>
+          </div>
+          <div class="hud" id="hud" hidden>
+            <div class="hud-head">🔎 扫描探针</div>
+            <div id="hudRows"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="playbar">
+        <div class="playbar-left">
+          <button class="ctrl" id="btnFirst" title="回到起点">⏮</button>
+          <button class="ctrl" id="btnPrevStep" title="上一步">◀</button>
+          <button class="ctrl ctrl-main" id="btnPlay" title="播放 / 暂停（空格）">▶</button>
+          <button class="ctrl" id="btnNextStep" title="下一步">▶</button>
+          <button class="ctrl" id="btnLast" title="跳到最终结果">⏭</button>
+        </div>
+        <div class="playbar-mid">
+          <div class="step-track" id="stepTrack"></div>
+        </div>
+        <div class="playbar-right">
+          <div class="speed" id="speedGroup">
+            <span class="muted small">速度</span>
+            <button class="spd" data-speed="0.5">0.5×</button>
+            <button class="spd is-on" data-speed="1">1×</button>
+            <button class="spd" data-speed="2">2×</button>
+            <button class="spd" data-speed="4">4×</button>
+          </div>
+          <label class="switch" title="只显示结果，跳过过程动画">
+            <input type="checkbox" id="chkInstant" />
+            <span>只看结果</span>
+          </label>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 右侧：概览 / 图表 / 统计 / 代码 ================= -->
+  <aside class="panel panel-right">
+    <section class="card">
+      <div class="card-head">
+        <h2><span class="dot dot-amber"></span>数据概览</h2>
+        <span class="chip chip-soft" id="stageLabel">原始</span>
+      </div>
+      <div class="card-body">
+        <div class="kpi-grid" id="kpiGrid"></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2><span class="dot dot-cyan"></span>分布图</h2>
+        <select id="chartPick" class="mini-select" title="选择图表字段"></select>
+      </div>
+      <div class="card-body">
+        <div class="chart-box" id="chartBox"></div>
+        <div class="chart-legend" id="chartLegend"></div>
+      </div>
+    </section>
+
+    <section class="card grow">
+      <div class="card-head">
+        <h2><span class="dot dot-violet"></span>描述统计</h2>
+        <span class="muted small">pandas describe()</span>
+      </div>
+      <div class="card-body">
+        <div class="describe-box" id="describeBox"><p class="muted small">运行「统计摘要」或任意步骤后查看。</p></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2><span class="dot dot-green"></span>等价 pandas 代码</h2>
+        <button class="btn btn-ghost btn-sm" id="btnCopyCode">复制</button>
+      </div>
+      <div class="card-body">
+        <pre class="code-box"><code id="codeBox"># 流水线为空</code></pre>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2><span class="dot dot-rose"></span>本步变化</h2>
+      </div>
+      <div class="card-body">
+        <div class="diff-box" id="diffBox"><p class="muted small">运行后显示行数 / 列数 / 单元格变化。</p></div>
+      </div>
+    </section>
+  </aside>
+</main>
+
+<!-- 粘贴数据弹窗 -->
+<div class="modal" id="pasteModal" hidden>
+  <div class="modal-mask" data-close></div>
+  <div class="modal-card">
+    <div class="modal-head">
+      <h3>粘贴数据</h3>
+      <button class="btn btn-icon" data-close>✕</button>
+    </div>
+    <p class="muted small">支持 CSV / TSV / JSON（数组对象）格式，首行作为列名。</p>
+    <textarea id="pasteArea" rows="12" placeholder="姓名,语文,数学&#10;张三,88,92&#10;李四,75,80"></textarea>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" data-close>取消</button>
+      <button class="btn btn-primary" id="btnPasteOk">解析并载入</button>
+    </div>
+  </div>
+</div>
+
+<!-- 说明弹窗 -->
+<div class="modal" id="helpModal" hidden>
+  <div class="modal-mask" data-close></div>
+  <div class="modal-card modal-wide">
+    <div class="modal-head">
+      <h3>使用说明</h3>
+      <button class="btn btn-icon" data-close>✕</button>
+    </div>
+    <div class="help-body">
+      <ol>
+        <li><b>选数据</b>：左上角切换内置数据集，或「导入数据 / 粘贴数据」载入自己的文件。</li>
+        <li><b>搭流水线</b>：在左侧「操作库」点击操作，加入中间流水线；在步骤卡片里设置参数。</li>
+        <li><b>看过程</b>：点击「运行全部」，表格会以动画演示扫描 → 比较 → 标记 → 删除 → 结果的完整逻辑。</li>
+        <li><b>控节奏</b>：底部播放条可播放 / 暂停 / 单步 / 跳转，速度 0.5×–4×，也可勾选「只看结果」。</li>
+        <li><b>读结果</b>：右侧同步更新数据概览、分布图、描述统计与等价 pandas 代码。</li>
+      </ol>
+      <p class="muted small">快捷键：<code>空格</code> 播放/暂停 · <code>←</code> 上一步 · <code>→</code> 下一步 · <code>R</code> 运行全部</p>
+      <p class="muted small">配套材料：
+        <a href="docs/video/DataFlow-Lab-demo.webm" target="_blank" rel="noopener">演示视频</a> ·
+        <a href="docs/亮点说明文档.md" target="_blank" rel="noopener">亮点说明文档</a> ·
+        <a href="docs/视频讲解稿.md" target="_blank" rel="noopener">视频讲解稿</a> ·
+        <a href="README.md" target="_blank" rel="noopener">README</a>
+      </p>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+
+<script src="assets/js/util.js"></script>
+<script src="assets/js/dataframe.js"></script>
+<script src="assets/js/datasets.js"></script>
+<script src="assets/js/charts.js"></script>
+<script src="assets/js/tableview.js"></script>
+<script src="assets/js/operations.js"></script>
+<script src="assets/js/animator.js"></script>
+<script src="assets/js/pipeline.js"></script>
+<script src="assets/js/importer.js"></script>
+<script src="assets/js/app.js"></script>
+</body>
+</html>
