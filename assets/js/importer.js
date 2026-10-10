@@ -1,71 +1,65 @@
 /* =============================================================
-   importer.js · 数据导入 / 导出
+   importer.js · 导入 / 导出（文件、粘贴、下载）
    ============================================================= */
 (function (global) {
   'use strict';
-  const { toast } = global.U;
-
-  function readFile(file) {
-    return new Promise((resolve, reject) => {
-      const fr = new FileReader();
-      fr.onload = () => resolve(String(fr.result || ''));
-      fr.onerror = () => reject(new Error('文件读取失败'));
-      fr.readAsText(file, 'utf-8');
-    });
-  }
-
-  function parse(text, name) {
-    const df = global.DF.DataFrame.auto(text, { name: name || '导入数据' });
-    if (!df.length) throw new Error('没有解析到数据行');
-    return df;
-  }
-
-  function exportCSV(df, filename) {
-    const blob = new Blob(['\ufeff' + df.toCSV()], { type: 'text/csv;charset=utf-8' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = filename || 'dataflow-result.csv';
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
-    toast('已导出 CSV：' + (filename || 'dataflow-result.csv'));
-  }
+  const U = global.U;
+  const D = global.DF;
+  const I = global.I18n;
+  const { $, toast } = U;
 
   function bind(app) {
-    const fileInput = document.getElementById('fileInput');
-    document.getElementById('btnImport').addEventListener('click', () => fileInput.click());
-    fileInput.addEventListener('change', async () => {
+    const fileInput = $('#fileInput');
+    $('#btnImport').addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', () => {
       const f = fileInput.files && fileInput.files[0];
       if (!f) return;
-      try {
-        const text = await readFile(f);
-        const df = parse(text, f.name);
-        app.loadData(df, `已导入 ${f.name}：${df.length} 行 × ${df.columns.length} 列`);
-      } catch (e) {
-        toast('导入失败：' + e.message, 3200);
-      }
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const df = D.DataFrame.auto(String(reader.result), { name: f.name });
+          app.loadData(df, `${I.t('msg.loaded')}：${f.name}`);
+        } catch (e) {
+          toast(I.t('msg.importFail') + '：' + (e.message || ''), 3000);
+        }
+      };
+      reader.onerror = () => toast(I.t('msg.importFail'), 3000);
+      reader.readAsText(f, 'utf-8');
       fileInput.value = '';
     });
 
-    const modal = document.getElementById('pasteModal');
-    document.getElementById('btnPaste').addEventListener('click', () => { modal.hidden = false; });
-    modal.addEventListener('click', (e) => { if (e.target.hasAttribute('data-close')) modal.hidden = true; });
-    document.getElementById('btnPasteOk').addEventListener('click', () => {
-      const text = document.getElementById('pasteArea').value.trim();
-      if (!text) { toast('请先粘贴数据'); return; }
+    $('#btnPaste').addEventListener('click', () => {
+      $('#pasteModal').hidden = false;
+      $('#pasteArea').focus();
+    });
+    $('#btnPasteOk').addEventListener('click', () => {
+      const text = $('#pasteArea').value.trim();
+      if (!text) { toast(I.t('msg.pasteEmpty')); return; }
       try {
-        const df = parse(text, '粘贴数据');
-        app.loadData(df, `已载入粘贴数据：${df.length} 行 × ${df.columns.length} 列`);
-        modal.hidden = true;
+        const df = D.DataFrame.auto(text, { name: 'pasted' });
+        $('#pasteModal').hidden = true;
+        app.loadData(df, I.t('msg.loaded'));
       } catch (e) {
-        toast('解析失败：' + e.message, 3200);
+        toast(I.t('msg.importFail') + '：' + (e.message || ''), 3000);
       }
     });
 
-    document.getElementById('btnExport').addEventListener('click', () => {
-      exportCSV(app.currentDf(), 'dataflow-result.csv');
+    $('#btnExport').addEventListener('click', () => {
+      const df = app.currentDf();
+      if (!df) return;
+      const csv = '\ufeff' + df.toCSV();
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'dataflow-result.csv';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1500);
+      toast(I.t('msg.exported'), 2400);
     });
   }
 
-  global.Importer = { bind, readFile, parse, exportCSV };
+  global.Importer = { bind };
 })(window);

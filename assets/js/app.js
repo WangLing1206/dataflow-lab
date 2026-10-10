@@ -1,11 +1,12 @@
 /* =============================================================
-   app.js · 应用主控：状态、播放控制、面板联动
+   app.js · 应用主控：状态、播放控制、面板联动、主题与语言
    ============================================================= */
 (function (global) {
   'use strict';
   const U = global.U;
   const D = global.DF;
-  const { $, el, toast, fmt, makeToken } = U;
+  const I = global.I18n;
+  const { $, $$, el, toast, fmt, makeToken } = U;
 
   const app = {
     state: { base: null, steps: [] },
@@ -19,11 +20,17 @@
     instant: false,
     runningIndex: -1,
     datasetId: null,
-    chartCol: null,
+    chartType: 'auto',
+    chartX: null,
+    chartY: null,
   };
 
   /* ---------------- 初始化 ---------------- */
   function init() {
+    applyStaticI18n();
+    initTheme();
+    initLang();
+
     app.view = new global.TableView($('#tableScroll'));
     app.animator = new global.Animator(app.view, {
       say: onSay,
@@ -32,7 +39,7 @@
     });
 
     const sel = $('#datasetSelect');
-    global.DATASETS.forEach((d) => sel.appendChild(el('option', { value: d.id, text: d.name })));
+    global.DATASETS.forEach((d) => sel.appendChild(el('option', { value: d.id, text: Datasets.name(d) })));
     sel.addEventListener('change', () => loadDataset(sel.value));
 
     $('#btnRunAll').addEventListener('click', () => playFrom(0));
@@ -40,8 +47,9 @@
     $('#btnClearOps').addEventListener('click', () => {
       app.state.steps = [];
       app.viewIndex = 0;
+      app.selectedStep = -1;
       renderAll(true);
-      toast('已清空流水线步骤');
+      toast(I.t('msg.cleared'));
     });
     $('#btnReload').addEventListener('click', () => loadDataset(app.datasetId));
     $('#btnDemo').addEventListener('click', startDemo);
@@ -56,14 +64,22 @@
       const b = e.target.closest('.spd');
       if (!b) return;
       app.speed = Number(b.dataset.speed);
-      U.$$('#speedGroup .spd').forEach((x) => x.classList.toggle('is-on', x === b));
+      $$('#speedGroup .spd').forEach((x) => x.classList.toggle('is-on', x === b));
     });
     $('#chkInstant').addEventListener('change', (e) => { app.instant = e.target.checked; });
 
-    $('#chartPick').addEventListener('change', (e) => { app.chartCol = e.target.value; updateChart(); });
+    $('#chartTabs').addEventListener('click', (e) => {
+      const b = e.target.closest('.chart-tab');
+      if (!b) return;
+      app.chartType = b.dataset.type;
+      updateChart();
+    });
+    $('#chartX').addEventListener('change', (e) => { app.chartX = e.target.value; updateChart(); });
+    $('#chartY').addEventListener('change', (e) => { app.chartY = e.target.value; updateChart(); });
+
     $('#btnCopyCode').addEventListener('click', () => {
       const txt = $('#codeBox').textContent;
-      navigator.clipboard && navigator.clipboard.writeText(txt).then(() => toast('代码已复制'), () => toast('复制失败'));
+      navigator.clipboard && navigator.clipboard.writeText(txt).then(() => toast(I.t('msg.copied')), () => toast(I.t('msg.copyFail')));
     });
 
     $('#btnHelp').addEventListener('click', () => { $('#helpModal').hidden = false; });
@@ -85,29 +101,103 @@
     loadDataset(global.DATASETS[0].id);
   }
 
+  /* ---------------- 主题 / 语言 ---------------- */
+  function initTheme() {
+    const saved = localStorage.getItem('dfl-theme');
+    const sys = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    setTheme(saved || (sys ? 'dark' : 'light'), true);
+    $('#btnTheme').addEventListener('click', () => {
+      setTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
+    });
+  }
+  function setTheme(t, silent) {
+    document.documentElement.dataset.theme = t;
+    $('#btnTheme').textContent = t === 'dark' ? '☾' : '☀';
+    localStorage.setItem('dfl-theme', t);
+    if (!silent) {
+      toast(I.t('msg.themeSwitched', { theme: I.t('theme.' + t) }));
+      setTimeout(() => { updateChart(); }, 60);
+    }
+  }
+
+  function initLang() {
+    const saved = localStorage.getItem('dfl-lang');
+    if (saved && saved !== I.lang) I.set(saved);
+    I.onChange(() => { applyStaticI18n(); rebuildForLang(); });
+    $('#langSeg').addEventListener('click', (e) => {
+      const b = e.target.closest('button[data-lang]');
+      if (!b) return;
+      I.set(b.dataset.lang);
+      localStorage.setItem('dfl-lang', b.dataset.lang);
+      $$('#langSeg button').forEach((x) => x.classList.toggle('is-on', x === b));
+      toast(I.t('msg.langSwitched'));
+    });
+    $$('#langSeg button').forEach((x) => x.classList.toggle('is-on', x.dataset.lang === I.lang));
+  }
+
+  /** 静态文案（data-i18n / data-i18n-html） */
+  function applyStaticI18n() {
+    $$('[data-i18n]').forEach((n) => { n.textContent = I.t(n.dataset.i18n); });
+    $$('[data-i18n-html]').forEach((n) => { n.innerHTML = I.t(n.dataset.i18nHtml); });
+    // 数据集下拉与说明
+    const sel = $('#datasetSelect');
+    if (sel) {
+      Array.from(sel.options).forEach((o) => {
+        const ds = global.DATASETS.find((d) => d.id === o.value);
+        if (ds) o.textContent = Datasets.name(ds);
+      });
+    }
+    const ds = Datasets.get(app.datasetId);
+    if (ds && app.datasetId) $('#dsDesc').textContent = Datasets.desc(ds);
+    $('#pasteArea').placeholder = I.t('paste.ph');
+    document.title = I.t('app.title') + ' · ' + I.t('app.subtitle').split(' · ')[0];
+  }
+
+  /** 语言切换后：用新语言重建基础数据并重算流水线（步骤参数用列 key，天然跨语言） */
+  function rebuildForLang() {
+    if (!app.datasetId) return;
+    const ds = Datasets.get(app.datasetId);
+    app.state.base = Datasets.build(ds, I.lang);
+    global.Pipe.computeFrom(app.state, 0);
+    app.viewIndex = U.clamp(app.viewIndex, 0, app.state.steps.length);
+    app.chartX = null; app.chartY = null;
+    renderAll(true);
+    const df = app.currentDf();
+    onSay({
+      badge: I.t('ui.badgeReady'),
+      title: I.t('ui.readyTip'),
+      sub: I.t('ui.readySub'),
+    });
+    void df;
+  }
+
   /* ---------------- 数据 ---------------- */
   function loadDataset(id) {
-    const ds = global.DATASETS.find((d) => d.id === id) || global.DATASETS[0];
+    const ds = Datasets.get(id);
     app.datasetId = ds.id;
     $('#datasetSelect').value = ds.id;
-    $('#dsDesc').textContent = ds.desc;
-    const df = D.DataFrame.fromCSV(ds.csv, { name: ds.name });
+    $('#dsDesc').textContent = Datasets.desc(ds);
+    const df = Datasets.build(ds, I.lang);
     app.state = { base: df, steps: [] };
     app.viewIndex = 0;
     app.selectedStep = -1;
-    app.chartCol = null;
+    app.chartX = null; app.chartY = null; app.chartType = 'auto';
     renderAll(true);
-    onSay({ badge: '就绪', title: `已载入「${ds.name}」：${df.length} 行 × ${df.columns.length} 列`, sub: '点击「运行全部」开始可视化演示，或从左侧操作库自己搭建流水线' });
+    onSay({
+      badge: I.t('ui.badgeReady'),
+      title: `${I.t('ui.readyTip')}：${I.t('ds.' + ds.id + '.name')} · ${I.t('ui.shape', { r: df.length, c: df.columns.length })}`,
+      sub: I.t('ui.readySub'),
+    });
   }
 
   function loadData(df, msg) {
     app.state = { base: df, steps: [] };
     app.viewIndex = 0;
     app.selectedStep = -1;
-    app.chartCol = null;
+    app.chartX = null; app.chartY = null;
     renderAll(true);
     if (msg) toast(msg, 2600);
-    onSay({ badge: '就绪', title: msg || '数据已载入', sub: '数据集已替换，流水线已重置' });
+    onSay({ badge: I.t('ui.badgeReady'), title: msg || I.t('msg.loaded'), sub: I.t('msg.loadedSub') });
   }
   app.loadData = loadData;
 
@@ -119,12 +209,11 @@
     const params = global.Pipe.defaultsFor(opId, df);
     app.state.steps.push({ id: 's' + Math.random().toString(36).slice(2, 8), op: opId, params, enabled: true });
     global.Pipe.computeFrom(app.state, app.state.steps.length - 1);
-    // 停在「新步骤之前」的状态，方便单步观看这一新步骤
     app.selectedStep = app.state.steps.length - 1;
     app.viewIndex = app.state.steps.length - 1;
     renderAll(true);
     const op = global.OPS[opId];
-    toast(`已加入「${op.name}」：点 ▶ 单步观看，或「运行全部」从头演示`);
+    toast(I.t('msg.addStep', { name: op.name }));
   };
 
   app.removeStep = function (i) {
@@ -161,7 +250,7 @@
     $('#btnPlay').textContent = '▶';
     $('#hud').hidden = true;
   }
-  function pause() { stop(); renderChrome(); toast('已暂停'); }
+  function pause() { stop(); renderChrome(); toast(I.t('msg.paused')); }
 
   function goto(k) {
     stop();
@@ -171,17 +260,19 @@
     app.view.resetStates();
     renderChrome();
     const df = app.currentDf();
-    onSay({
-      badge: app.viewIndex === 0 ? '原始' : '第 ' + app.viewIndex + ' 步',
-      title: app.viewIndex === 0
-        ? `原始数据：${df.length} 行 × ${df.columns.length} 列`
-        : `已跳到第 ${app.viewIndex} 步的结果：${df.length} 行 × ${df.columns.length} 列`,
-      sub: app.viewIndex === 0 ? '点击「运行全部」观看完整的处理过程' : '回退到任意步骤，或继续运行后续步骤',
-    });
+    if (app.viewIndex === 0) {
+      onSay({ badge: I.t('ui.badgeRaw'), title: `${I.t('ui.sourceNode')}：${I.t('ui.shape', { r: df.length, c: df.columns.length })}`, sub: I.t('ui.readySub') });
+    } else {
+      onSay({
+        badge: I.t('ui.badgeStep', { n: app.viewIndex }),
+        title: I.t('ui.shape', { r: df.length, c: df.columns.length }),
+        sub: global.OPS[app.state.steps[app.viewIndex - 1].op].name,
+      });
+    }
   }
 
   async function runStep(i) {
-    if (i >= app.state.steps.length) return;
+    if (i >= app.state.steps.length) return false;
     const step = app.state.steps[i];
     stop();
     const before = global.Pipe.dfAt(app.state, i);
@@ -211,7 +302,7 @@
   }
 
   async function playFrom(start) {
-    if (!app.state.steps.length) { toast('流水线为空：先从左侧操作库添加步骤，或点击「自动演示」'); return; }
+    if (!app.state.steps.length) { toast(I.t('msg.emptyPipe')); return; }
     stop();
     if (start === 0) {
       app.viewIndex = 0;
@@ -224,17 +315,21 @@
       await U.sleep(260 / app.speed);
     }
     const df = app.currentDf();
-    onSay({ badge: '完成', title: `全部 ${app.state.steps.length} 步执行完毕`, sub: `最终结果：${df.length} 行 × ${df.columns.length} 列，可点击「导出」保存处理后的数据` });
+    onSay({
+      badge: I.t('ui.badgeDone'),
+      title: I.t('ui.allDone', { n: app.state.steps.length }),
+      sub: I.t('ui.allDoneSub', { shape: I.t('ui.shape', { r: df.length, c: df.columns.length }) }),
+    });
   }
 
   async function startDemo() {
-    const ds = global.DATASETS.find((d) => d.id === app.datasetId);
+    const ds = Datasets.get(app.datasetId);
     stop();
-    global.Pipe.buildFromDemo(app.state, (ds && ds.demo) || global.DATASETS[0].demo);
+    global.Pipe.buildFromDemo(app.state, ds.demo);
     app.viewIndex = 0;
     app.selectedStep = -1;
     renderAll(true);
-    toast('自动演示开始：观察每一步的处理逻辑', 2400);
+    toast(I.t('msg.demoStart'), 2400);
     await U.sleep(320);
     playFrom(0);
   }
@@ -262,7 +357,7 @@
     for (let i = 0; i <= n; i++) {
       const seg = el('div', {
         class: 'track-seg' + (i < app.viewIndex ? ' done' : '') + (i === app.viewIndex ? ' cur' : ''),
-        title: i === 0 ? '原始数据' : `步骤 ${i}：${global.OPS[app.state.steps[i - 1].op].name}`,
+        title: i === 0 ? I.t('ui.sourceNode') : `${I.t('ui.stepOf', { n: i })}：${global.OPS[app.state.steps[i - 1].op].name}`,
         onclick: () => goto(i),
       });
       box.appendChild(seg);
@@ -270,8 +365,9 @@
   }
 
   function onSay(o) {
-    $('#narrBadge').textContent = o.badge || '运行';
-    $('#narrBadge').className = 'narration-badge' + (o.badge === '完成' ? ' ok' : (o.badge === '删除' || o.badge === '核心' ? ' run' : ''));
+    const b = $('#narrBadge');
+    b.textContent = o.badge || I.t('ui.badgeRun');
+    b.className = 'narration-badge' + (/完成|done/i.test(o.badge || '') ? ' ok' : /运行|删除|核心|run|drop|core/i.test(o.badge || '') ? ' run' : '');
     $('#narrTitle').textContent = o.title || '';
     $('#narrSub').textContent = o.sub || '';
   }
@@ -283,15 +379,11 @@
     if (!data) return;
     const box = $('#hudRows');
     box.innerHTML = '';
-    if (data.total !== undefined) box.appendChild(hudRow('扫描进度', `${data.count} / ${data.total}`));
+    if (data.total !== undefined) box.appendChild(hudRow(I.t('hud.progress'), `${data.count} / ${data.total}`));
     (data.rows || []).forEach((r) => box.appendChild(hudRow(r.label, r.value, r.cls)));
   }
-
   function hudRow(label, value, cls) {
-    return el('div', { class: 'hud-row' }, [
-      el('span', { text: label }),
-      el('b', { class: cls || '', text: String(value) }),
-    ]);
+    return el('div', { class: 'hud-row' }, [el('span', { text: label }), el('b', { class: cls || '', text: String(value) })]);
   }
 
   /* ---------------- 面板 ---------------- */
@@ -300,87 +392,94 @@
     const base = app.state.base;
     const prev = app.viewIndex > 0 ? global.Pipe.dfAt(app.state, app.viewIndex - 1) : base;
 
-    // 左侧数据源信息
-    $('#dsShape').textContent = `${base.length} 行 × ${base.columns.length} 列`;
-    $('#dsStats').innerHTML = '';
-    const nmiss = base.totalMissing();
-    $('#dsStats').appendChild(miniStat(String(base.length), '总行数'));
-    $('#dsStats').appendChild(miniStat(String(base.columns.length), '列数'));
-    $('#dsStats').appendChild(miniStat(String(base.numericColumns().length), '数值列'));
-    $('#dsStats').appendChild(miniStat(String(nmiss), '缺失单元格'));
+    $('#dsShape').textContent = I.t('ui.shape', { r: base.length, c: base.columns.length });
+    const dst = $('#dsStats');
+    dst.innerHTML = '';
+    dst.appendChild(miniStat(String(base.length), I.t('ui.totalRows')));
+    dst.appendChild(miniStat(String(base.columns.length), I.t('ui.cols')));
+    dst.appendChild(miniStat(String(base.numericColumns().length), I.t('ui.numCols')));
+    dst.appendChild(miniStat(String(base.totalMissing()), I.t('ui.missing')));
 
-    // KPI
-    $('#stageLabel').textContent = app.viewIndex === 0 ? '原始' : `第 ${app.viewIndex} 步`;
+    $('#stageLabel').textContent = app.viewIndex === 0 ? I.t('ui.stageRaw') : I.t('ui.stageStep', { n: app.viewIndex });
     const kpi = $('#kpiGrid');
     kpi.innerHTML = '';
-    kpi.appendChild(kpiBox('行数', df.length, df.length - prev.length, true));
-    kpi.appendChild(kpiBox('列数', df.columns.length, df.columns.length - prev.columns.length, true));
-    kpi.appendChild(kpiBox('缺失值', df.totalMissing(), df.totalMissing() - prev.totalMissing(), false));
-    kpi.appendChild(kpiBox('数值列', df.numericColumns().length, df.numericColumns().length - prev.numericColumns().length, true));
+    kpi.appendChild(kpiBox(I.t('ui.rows'), df.length, df.length - prev.length, true));
+    kpi.appendChild(kpiBox(I.t('ui.colCount'), df.columns.length, df.columns.length - prev.columns.length, true));
+    kpi.appendChild(kpiBox(I.t('ui.missingVal'), df.totalMissing(), df.totalMissing() - prev.totalMissing(), false));
+    kpi.appendChild(kpiBox(I.t('ui.numCols'), df.numericColumns().length, df.numericColumns().length - prev.numericColumns().length, true));
 
-    // 图表
     updateChart();
-    // 描述统计
     updateDescribe(df);
-    // 代码
     updateCode();
-    // 变化
     updateDiff(df, prev);
   }
 
-  function miniStat(v, label) {
-    return el('div', { class: 'mini-stat' }, [el('b', { text: v }), el('span', { text: label })]);
-  }
-
+  function miniStat(v, label) { return el('div', { class: 'mini-stat' }, [el('b', { text: v }), el('span', { text: label })]); }
   function kpiBox(label, v, delta, upIsGood) {
     const cls = delta === 0 ? '' : ((delta > 0) === !!upIsGood ? ' up' : ' down');
     const d = delta === 0 ? '' : ` (${delta > 0 ? '+' : ''}${delta})`;
-    return el('div', { class: 'kpi' + cls }, [
-      el('b', { text: String(v) }),
-      el('span', { text: label + d }),
-    ]);
+    return el('div', { class: 'kpi' + cls }, [el('b', { text: String(v) }), el('span', { text: label + d })]);
   }
 
+  /* ---------------- 图表 ---------------- */
   function updateChart() {
     const df = app.currentDf();
-    const pick = $('#chartPick');
-    const names = df.names();
-    if (pick.dataset.sig !== names.join('|')) {
-      pick.innerHTML = '';
-      names.forEach((n) => pick.appendChild(el('option', { value: n, text: n + (df.typeOf(n) === 'number' ? '（数值）' : '') })));
-      pick.dataset.sig = names.join('|');
+    if (!df) return;
+    const keys = df.keys();
+    const tabs = $('#chartTabs');
+    const avail = global.Charts.available(df);
+    const sig = avail.join(',') + '|' + app.chartType + '|' + I.lang;
+    if (tabs.dataset.sig !== sig) {
+      tabs.innerHTML = '';
+      avail.forEach((t) => {
+        tabs.appendChild(el('button', {
+          class: 'chart-tab' + (t === app.chartType ? ' is-on' : ''),
+          'data-type': t, text: global.Charts.typeName(t),
+        }));
+      });
+      tabs.dataset.sig = sig;
     }
-    let col = app.chartCol && names.includes(app.chartCol) ? app.chartCol : defaultChartCol(df);
-    app.chartCol = col;
-    pick.value = col;
-    global.Charts.render($('#chartBox'), df, col, $('#chartLegend'));
-  }
+    if (avail.indexOf(app.chartType) < 0) app.chartType = 'auto';
 
-  /** 选一个最有信息量的默认作图字段（跳过 id 类字段） */
-  function defaultChartCol(df) {
-    const nums = df.numericColumns();
-    const idLike = /(^|_|\b)(id|ID|学号|编号|序号|index|no)$/;
-    const cand = nums.filter((n) => !idLike.test(n));
-    const list = cand.length ? cand : nums;
-    if (!list.length) return df.names()[0];
-    // 优先方差更大的列（分布更有看头）
-    let best = list[0], bestV = -1;
-    list.forEach((c) => {
-      const v = D.Stats.std(df.values(c));
-      if (v > bestV) { bestV = v; best = c; }
+    ['chartX', 'chartY'].forEach((id) => {
+      const s = $('#' + id);
+      const sig2 = keys.join('|');
+      if (s.dataset.sig !== sig2) {
+        s.innerHTML = '';
+        keys.forEach((k) => s.appendChild(el('option', { value: k, text: df.nameOf(k) })));
+        s.dataset.sig = sig2;
+      }
     });
-    return best;
+    // 与分析联动：优先展示「当前步骤正在处理的那一列」
+    const idx = app.runningIndex >= 0 ? app.runningIndex : app.selectedStep;
+    const step = idx >= 0 ? app.state.steps[idx] : (app.viewIndex > 0 ? app.state.steps[app.viewIndex - 1] : null);
+    let hint = null;
+    if (step && step.params) {
+      const p = step.params;
+      hint = p.col || p.yKey || (Array.isArray(p.valueCols) ? p.valueCols[0] : null) || null;
+      if (hint && !df.has(hint)) hint = null;
+    }
+    const rx = global.Charts.resolve({
+      type: app.chartType,
+      xKey: app.chartX || (step && step.params ? (step.params.by || step.params.index || step.params.key || null) : null),
+      yKey: app.chartY || hint,
+    }, df);
+    if ($('#chartX').value !== String(rx.x || '')) $('#chartX').value = rx.x || '';
+    if ($('#chartY').value !== String(rx.y || '')) $('#chartY').value = rx.y || '';
+    $('#chartX').title = I.t('chart.x'); $('#chartY').title = I.t('chart.y');
+
+    global.Charts.render($('#chartBox'), df, { type: app.chartType, xKey: rx.x, yKey: rx.y }, $('#chartLegend'));
   }
 
-  function updateDescribe(df) {    const box = $('#describeBox');
+  function updateDescribe(df) {
+    const box = $('#describeBox');
     const d = D.describe(df);
-    if (!d) { box.innerHTML = '<p class="muted small">当前数据没有数值列。</p>'; return; }
+    if (!d) { box.innerHTML = '<p class="muted small">' + I.t('ui.noNumeric') + '</p>'; return; }
     const t = el('table', { class: 'desc-table' });
-    const thead = el('thead', {}, [el('tr', {}, [el('th', { text: '统计' })].concat(d.columns.map((c) => el('th', { text: c }))))]);
-    t.appendChild(thead);
+    t.appendChild(el('thead', {}, [el('tr', {}, [el('th', { text: I.t('c.stat') })].concat(d.columns.map((k) => el('th', { text: df.nameOf(k) }))))]));
     const tb = el('tbody');
     d.rows.forEach((r) => {
-      tb.appendChild(el('tr', {}, [el('td', { text: r.stat })].concat(d.columns.map((c) => el('td', { text: r[c] === null ? '–' : fmt(r[c]) })))));
+      tb.appendChild(el('tr', {}, [el('td', { text: r.stat })].concat(d.columns.map((k) => el('td', { text: r[k] === null ? '–' : fmt(r[k]) })))));
     });
     t.appendChild(tb);
     box.innerHTML = '';
@@ -388,12 +487,12 @@
   }
 
   function updateCode() {
-    const lines = ['import pandas as pd', `df = pd.read_csv('${app.datasetId || 'data'}.csv')   # 或 pd.DataFrame(...)`];
+    const lines = ['import pandas as pd', `df = pd.read_csv('${app.datasetId || 'data'}.csv')   # ${I.t('c.or')} pd.DataFrame(...)`];
     const upto = app.viewIndex;
     for (let i = 0; i < Math.min(upto, app.state.steps.length); i++) {
       const s = app.state.steps[i];
       lines.push('');
-      lines.push(`# 步骤 ${i + 1} · ${global.OPS[s.op].name}`);
+      lines.push(`# ${I.t('ui.stepOf', { n: i + 1 })} · ${global.OPS[s.op].name}`);
       lines.push(String(s.code || ''));
     }
     $('#codeBox').innerHTML = highlight(lines.join('\n'));
@@ -403,15 +502,15 @@
     const box = $('#diffBox');
     box.innerHTML = '';
     if (app.viewIndex === 0) {
-      box.appendChild(el('p', { class: 'muted small', text: '当前展示的是原始数据，运行步骤后可查看每一步的变化量。' }));
+      box.appendChild(el('p', { class: 'muted small', text: I.t('ui.diffHint') }));
       return;
     }
     const step = app.state.steps[app.viewIndex - 1];
     const rows = [
-      ['步骤', global.OPS[step.op].name, ''],
-      ['行数', `${prev.length} → ${df.length}`, df.length - prev.length],
-      ['列数', `${prev.columns.length} → ${df.columns.length}`, df.columns.length - prev.columns.length],
-      ['缺失值', `${prev.totalMissing()} → ${df.totalMissing()}`, df.totalMissing() - prev.totalMissing()],
+      [global.OPS[step.op].name, '', ''],
+      [I.t('ui.rows'), `${prev.length} → ${df.length}`, df.length - prev.length],
+      [I.t('ui.colCount'), `${prev.columns.length} → ${df.columns.length}`, df.columns.length - prev.columns.length],
+      [I.t('ui.missingVal'), `${prev.totalMissing()} → ${df.totalMissing()}`, df.totalMissing() - prev.totalMissing()],
     ];
     rows.forEach((r) => {
       let cls = '';

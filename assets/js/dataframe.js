@@ -111,6 +111,7 @@
       const header = uniqNames(matrix[0].map((h) => String(h)));
       const body = matrix.slice(1);
       const columns = header.map((name, i) => ({
+        key: name,                 // 导入数据：key == 显示名
         name,
         type: inferType(body.map((r) => r[i])),
       }));
@@ -120,6 +121,25 @@
         return o;
       });
       return new DataFrame(rows, columns, meta);
+    }
+
+    /**
+     * 由「列定义 + 行数组」构造（内置数据集用）
+     * cols: [{ key, name }]  —— key 稳定不随语言变化，name 是当前语言的显示名
+     * rows: [[v1, v2, ...], ...]
+     */
+    static fromColumns(cols, rows, meta) {
+      const columns = cols.map((c, i) => ({
+        key: c.key,
+        name: c.name,
+        type: inferType((rows || []).map((r) => r[i])),
+      }));
+      const body = (rows || []).map((r) => {
+        const o = { _id: nextId() };
+        columns.forEach((c, i) => { o[c.key] = castCell(r[i], c.type); });
+        return o;
+      });
+      return new DataFrame(body, columns, meta);
     }
 
     static fromCSV(text, meta) {
@@ -144,14 +164,18 @@
       return DataFrame.fromCSV(t, meta);
     }
 
-    /* ---- 基本属性 ---- */
+    /* ---- 基本属性（列用 key 寻址；name 仅用于显示） ---- */
     get shape() { return [this.rows.length, this.columns.length]; }
     get length() { return this.rows.length; }
+    keys() { return this.columns.map((c) => c.key); }
     names() { return this.columns.map((c) => c.name); }
-    typeOf(col) { const c = this.columns.find((x) => x.name === col); return c ? c.type : 'string'; }
-    numericColumns() { return this.columns.filter((c) => c.type === 'number').map((c) => c.name); }
-    textColumns() { return this.columns.filter((c) => c.type !== 'number').map((c) => c.name); }
-    has(col) { return this.columns.some((c) => c.name === col); }
+    column(key) { return this.columns.find((c) => c.key === key); }
+    nameOf(key) { const c = this.column(key); return c ? c.name : key; }
+    keyOf(name) { const c = this.columns.find((x) => x.name === name); return c ? c.key : name; }
+    typeOf(key) { const c = this.column(key); return c ? c.type : 'string'; }
+    numericColumns() { return this.columns.filter((c) => c.type === 'number').map((c) => c.key); }
+    textColumns() { return this.columns.filter((c) => c.type !== 'number').map((c) => c.key); }
+    has(key) { return this.columns.some((c) => c.key === key); }
 
     clone() {
       return new DataFrame(
@@ -165,49 +189,67 @@
     tail(n) { return new DataFrame(this.rows.slice(-n), this.columns.map((c) => Object.assign({}, c)), this.meta); }
 
     /** 值序列（跳过缺失） */
-    values(col) {
+    values(key) {
       const out = [];
-      for (const r of this.rows) { const v = r[col]; if (!isMissing(v)) out.push(typeof v === 'number' ? v : toNumber(v)); }
+      for (const r of this.rows) { const v = r[key]; if (!isMissing(v)) out.push(typeof v === 'number' ? v : toNumber(v)); }
       return out.filter((v) => v !== null);
     }
 
-    rawValues(col) { return this.rows.map((r) => r[col]); }
+    rawValues(key) { return this.rows.map((r) => r[key]); }
 
-    missingCount(col) {
+    missingCount(key) {
       let n = 0;
-      for (const r of this.rows) if (isMissing(r[col])) n++;
+      for (const r of this.rows) if (isMissing(r[key])) n++;
       return n;
     }
 
-    totalMissing() { return this.columns.reduce((a, c) => a + this.missingCount(c.name), 0); }
+    totalMissing() { return this.columns.reduce((a, c) => a + this.missingCount(c.key), 0); }
 
     /** 全表缺失单元格比例 */
     cellCount() { return this.rows.length * this.columns.length; }
 
-    uniqueValues(col) {
+    uniqueValues(key) {
       const s = new Set();
-      for (const r of this.rows) if (!isMissing(r[col])) s.add(String(r[col]));
+      for (const r of this.rows) if (!isMissing(r[key])) s.add(String(r[key]));
       return Array.from(s);
     }
 
-    valueCounts(col, limit) {
+    valueCounts(key, limit) {
       const m = new Map();
       for (const r of this.rows) {
-        const k = isMissing(r[col]) ? '(缺失)' : String(r[col]);
+        const k = isMissing(r[key]) ? '(缺失)' : String(r[key]);
         m.set(k, (m.get(k) || 0) + 1);
       }
       const arr = Array.from(m.entries()).sort((a, b) => b[1] - a[1]);
       return limit ? arr.slice(0, limit) : arr;
     }
 
+    /** 缺失值序列（用于 ffill / bfill / 插值） */
+    isMissingAt(i, key) { return isMissing(this.rows[i] && this.rows[i][key]); }
+
     toCSV() {
       const esc = (v) => {
         const s = v === null || v === undefined ? '' : String(v);
         return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
       };
-      const lines = [this.names().map(esc).join(',')];
-      for (const r of this.rows) lines.push(this.names().map((c) => esc(r[c])).join(','));
+      const cols = this.columns;
+      const lines = [cols.map((c) => esc(c.name)).join(',')];
+      for (const r of this.rows) lines.push(cols.map((c) => esc(r[c.key])).join(','));
       return lines.join('\n');
+    }
+
+    /** 相关性矩阵（数值列两两皮尔逊相关） */
+    corrMatrix() {
+      const cols = this.numericColumns();
+      const m = cols.map(() => cols.map(() => 0));
+      for (let i = 0; i < cols.length; i++) {
+        for (let j = 0; j < cols.length; j++) {
+          if (i === j) { m[i][j] = 1; continue; }
+          if (j < i) { m[i][j] = m[j][i]; continue; }
+          m[i][j] = Stats.corr(this.values(cols[i]), this.values(cols[j]));
+        }
+      }
+      return { cols, matrix: m };
     }
   }
 

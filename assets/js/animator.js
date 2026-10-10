@@ -2,38 +2,48 @@
    animator.js · 动画剧本播放器
    把 operations 生成的 trace 事件逐个播放出来：
    扫描 → 比较 → 标记 → 删除 → 填充 → 聚合 → 落定
+   所有文案都通过 i18n key 在播放时解析，切换语言后重算即可
    ============================================================= */
 (function (global) {
   'use strict';
-  const { sleep, fmt } = global.U;
-  const D = global.DF;
+  const U = global.U;
+  const I = global.I18n;
+  const { sleep, fmt, clamp } = U;
+
+  function badgeText(key) {
+    if (!key) return I.t('ui.badgeRun');
+    const map = {
+      ready: 'ui.badgeReady', run: 'ui.badgeRun', done: 'ui.badgeDone', del: 'ui.badgeDel',
+      core: 'ui.badgeCore', agg: 'ui.badgeAgg', trans: 'ui.badgeTrans', skip: 'ui.badgeSkip',
+      raw: 'ui.badgeRaw', step: 'ui.badgeStep',
+    };
+    return I.t(map[key] || 'ui.badgeRun');
+  }
 
   class Animator {
     constructor(view, hooks) {
       this.view = view;
       this.hooks = hooks || {};
-      this.speed = 1;
       this.token = null;
+      this.speed = 1;
     }
-
     cancel() { if (this.token) this.token.cancel(); }
 
-    /** 播放一条操作结果 */
     async play(result, opts) {
       opts = opts || {};
       const speed = opts.speed || 1;
-      const token = opts.token || global.U.makeToken();
-      this.token = token;
       this.speed = speed;
+      const token = opts.token || U.makeToken();
+      this.token = token;
       const view = this.view;
       const trace = result.trace || [];
       const t = (ms) => sleep(ms / speed, token);
 
       if (opts.instant) {
         this.hooks.say && this.hooks.say({
-          badge: '完成',
-          title: result.trace && result.trace.length ? (result.trace[0].title || '执行完成') : '执行完成',
-          sub: '已跳过过程动画，直接给出结果',
+          badge: badgeText('done'),
+          title: I.t('msg.instantOn'),
+          sub: I.t('msg.skipSub'),
         });
         view.setData(result.df);
         this.hooks.progress && this.hooks.progress(1);
@@ -48,15 +58,16 @@
           case 'say': await this.evSay(ev, t); break;
           case 'hud': this.hooks.hud && this.hooks.hud(ev.show, null); await t(160); break;
           case 'wait': await t(ev.ms || 300); break;
-          case 'scan': await this.evScan(ev, t, speed); break;
+          case 'scan': await this.evScan(ev, t); break;
           case 'mark': await this.evMark(ev, t); break;
-          case 'drop': await this.evDrop(ev, t, speed); break;
+          case 'drop': await this.evDrop(ev, t); break;
           case 'fill': await this.evFill(ev, t); break;
-          case 'addcol': await this.evAddCol(ev, t, speed); break;
+          case 'addcol': await this.evAddCol(ev, t); break;
           case 'removecol': await this.evRemoveCol(ev, t); break;
           case 'rename': await this.evRename(ev, t); break;
+          case 'reorder': await this.evReorder(ev, t); break;
           case 'group': await this.evGroup(ev, t); break;
-          case 'agg': await this.evAgg(ev, t, speed); break;
+          case 'agg': await this.evAgg(ev, t); break;
           case 'settle': await this.evSettle(ev, result, t); break;
           default: break;
         }
@@ -64,16 +75,19 @@
       this.hooks.progress && this.hooks.progress(1);
     }
 
+    sayOf(key, args) { return I.say(key, args); }
+
     /* ---------------- 事件实现 ---------------- */
     async evSay(ev, t) {
-      this.hooks.say && this.hooks.say({ badge: ev.badge || '运行', title: ev.title || '', sub: ev.sub || '' });
+      const s = this.sayOf(ev.key, ev.args);
+      this.hooks.say && this.hooks.say({ badge: badgeText(ev.badge), title: s.title, sub: s.sub });
       await t(ev.hold || 820);
     }
 
-    async evScan(ev, t, speed) {
+    async evScan(ev, t) {
       const view = this.view;
       const per = ev.per || 80;
-      const hud = !!ev.hud;
+      const hud = ev.hud !== false;
 
       if (ev.mode === 'cells') {
         const cells = ev.cellItems || [];
@@ -86,9 +100,9 @@
           hud && this.hooks.hud && this.hooks.hud(true, {
             count: found, total: cells.length,
             rows: [
-              { label: '已发现缺失', value: found, cls: 'hud-max' },
-              { label: '当前列', value: c.col },
-              { label: '标记', value: '⌀ 空值' },
+              { label: I.t('hud.found'), value: found, cls: 'hud-max' },
+              { label: I.t('hud.col'), value: view.df ? view.df.nameOf(c.col) : c.col },
+              { label: I.t('hud.mark'), value: '⌀' },
             ],
           });
           await t(per);
@@ -119,9 +133,9 @@
           hud && this.hooks.hud && this.hooks.hud(true, {
             count: idx, total: items.length,
             rows: [
-              { label: '当前最小', value: minId === null ? '–' : fmt(minV), cls: 'hud-min' },
-              { label: '当前最大', value: maxId === null ? '–' : fmt(maxV), cls: 'hud-max' },
-              { label: '当前值', value: fmt(it.v) },
+              { label: I.t('hud.min'), value: minId === null ? I.t('hud.dash') : fmt(minV), cls: 'hud-min' },
+              { label: I.t('hud.max'), value: maxId === null ? I.t('hud.dash') : fmt(maxV), cls: 'hud-max' },
+              { label: I.t('hud.cur'), value: fmt(it.v) },
             ],
           });
         } else if (ev.track === 'flag') {
@@ -136,22 +150,21 @@
           hud && this.hooks.hud && this.hooks.hud(true, {
             count: idx, total: items.length,
             rows: [
-              { label: ev.keepLabel || '命中', value: pass, cls: 'hud-min' },
-              { label: ev.dropLabel || '剔除', value: fail, cls: 'hud-max' },
-              { label: '当前行', value: it.flag === 'pass' ? '命中' : '剔除' },
+              { label: I.t(ev.keepKey || 'hud.hit'), value: pass, cls: 'hud-min' },
+              { label: I.t(ev.dropKey || 'hud.out'), value: fail, cls: 'hud-max' },
+              { label: I.t('hud.curRow'), value: it.flag === 'pass' ? I.t('hud.hit') : I.t('hud.out') },
             ],
           });
         } else {
           view.markCell(it.id, col, 'mark-hit');
           hud && this.hooks.hud && this.hooks.hud(true, {
             count: idx, total: items.length,
-            rows: [{ label: '已读取', value: `${idx} / ${items.length}` }],
+            rows: [{ label: I.t('hud.read'), value: `${idx} / ${items.length}` }],
           });
         }
         await t(per);
       }
       view.clearProbe();
-      if (ev.track === 'minmax') { minId = maxId = null; }
     }
 
     async evMark(ev, t) {
@@ -164,16 +177,17 @@
       await t(320);
     }
 
-    async evDrop(ev, t, speed) {
+    async evDrop(ev, t) {
       const view = this.view;
       const ids = ev.ids || [];
       if (!ids.length) return;
-      this.hooks.say && this.hooks.say({
-        badge: '删除',
-        title: `开始删除：${ids.length} 行（${ev.label || '不满足条件'}）`,
-        sub: '红色标记的行会依次淡出并收起，剩余行自然上移',
+      const s = this.sayOf('say.drop.start', {
+        n: ids.length,
+        label: I.t(ev.labelKey || 'drop.default', ev.labelArgs || {}),
       });
-      const gap = U.clamp(260 / ids.length, 22, 90);
+      this.hooks.say && this.hooks.say({ badge: badgeText('del'), title: s.title, sub: s.sub });
+      await t(560);
+      const gap = clamp(320 / ids.length, 22, 90);
       await view.dropRows(ids, { gap, token: this.token });
     }
 
@@ -182,43 +196,44 @@
       const cells = ev.cells || [];
       for (const c of cells) {
         view.scrollTo(c.id);
-        await view.setCell(c.id, c.col, c.v, true);
+        await view.setCell(c.id, c.col, c.v, true, Math.round(520 / this.speed));
         await t(ev.per || 180);
       }
       await t(200);
     }
 
-    async evAddCol(ev, t, speed) {
+    async evAddCol(ev, t) {
       const view = this.view;
-      const col = ev.col;
-      // 1) 先插入空列（右侧滑入）
+      const col = ev.col;               // { key, name }
       const tmp = view.df.clone();
-      if (!tmp.columns.some((c) => c.name === col)) tmp.columns.push({ name: col, type: 'number' });
-      tmp.rows.forEach((r) => { r[col] = null; });
+      if (!tmp.columns.some((c) => c.key === col.key)) {
+        tmp.columns.push({ key: col.key, name: col.name, type: col.type || 'number' });
+      }
+      tmp.rows.forEach((r) => { r[col.key] = null; });
       view.setData(tmp, { silent: true });
-      const h = view.headEl(col);
+      const h = view.headEl(col.key);
       if (h) h.classList.add('newcol');
-      view.body.querySelectorAll(`.dtd[data-col="${col}"]`).forEach((c) => c.classList.add('newcol'));
-      this.hooks.say && this.hooks.say({
-        badge: '变换',
-        title: `插入新列「${col}」`,
-        sub: `计算方式：${ev.formula || '逐行计算'}`,
-      });
+      view.body.querySelectorAll('.dtd[data-col="' + col.key + '"]').forEach((c) => c.classList.add('newcol'));
+      const s = this.sayOf('say.assign.add', { name: col.name });
+      this.hooks.say && this.hooks.say({ badge: badgeText('trans'), title: s.title, sub: ev.formula || s.sub });
       await t(420);
-      // 2) 逐行填充（数字滚动）
+
       const cells = ev.cells || [];
-      const per = ev.per || 60;
       for (const c of cells) {
-        const td = view.cellEl(c.id, col);
+        const td = view.cellEl(c.id, col.key);
         if (td) {
           td.classList.remove('is-null', 'newcol');
-          td.classList.add('num');
-          await global.U.tweenNumber(0, c.v === null ? 0 : c.v, 420, (v) => { td.textContent = fmt(v); });
-          td.textContent = c.v === null ? '' : fmt(c.v);
+          if (typeof c.v === 'number') td.classList.add('num');
+          if (typeof c.v === 'number' && c.v !== null) {
+            await U.tweenNumber(0, c.v, Math.round(420 / this.speed), (v) => { td.textContent = fmt(v); });
+            td.textContent = fmt(c.v);
+          } else {
+            td.textContent = (c.v === null || c.v === undefined) ? '' : String(c.v);
+          }
         }
-        await t(per);
+        await t(ev.per || 55);
       }
-      await t(260);
+      await t(240);
     }
 
     async evRemoveCol(ev, t) {
@@ -232,15 +247,20 @@
 
     async evRename(ev, t) {
       const view = this.view;
-      view.flipHeader(ev.from);
+      view.flipHeader(ev.from.key);
       await t(260);
-      const h = view.headEl(ev.from);
+      const h = view.headEl(ev.from.key);
       if (h) {
-        h.querySelector('span').textContent = ev.to;
-        h.dataset.col = ev.to;
+        const sp = h.querySelector('span');
+        if (sp) sp.textContent = ev.to.name;
       }
-      view.body.querySelectorAll(`.dtd[data-col="${ev.from}"]`).forEach((c) => { c.dataset.col = ev.to; });
       await t(340);
+    }
+
+    async evReorder(ev, t) {
+      const view = this.view;
+      view.flip(() => view.reorder(ev.ids || []), 560);
+      await t(620);
     }
 
     async evGroup(ev, t) {
@@ -251,21 +271,13 @@
         await t(30);
       }
       await t(240);
-      const order = [];
-      groups.forEach((g) => g.ids.forEach((id) => order.push(id)));
-      view.flip(() => view.reorder(order));
-      await t(620);
     }
 
-    async evAgg(ev, t, speed) {
+    async evAgg(ev, t) {
       const view = this.view;
-      const howName = { mean: '均值', sum: '求和', count: '计数', max: '最大值', min: '最小值', median: '中位数' }[ev.how] || ev.how;
       for (const g of ev.groups || []) {
-        this.hooks.say && this.hooks.say({
-          badge: '聚合',
-          title: `组「${g.key}」：${g.n} 行 → ${howName} = ${fmt(g.value)}`,
-          sub: `组内 ${g.n} 行先聚拢，再坍缩成 1 行汇总结果`,
-        });
+        const s = this.sayOf(ev.sayKey || 'say.groupby.agg', { key: g.key, n: g.n, how: I.opt('groupby', ev.how), v: fmt(g.value) });
+        this.hooks.say && this.hooks.say({ badge: badgeText('agg'), title: s.title, sub: s.sub });
         g.ids.forEach((id) => view.flashRow(id, 'ok'));
         await t(320);
         await view.collapseInto(g.ids, g.ids[0], this.token);
@@ -292,6 +304,5 @@
     }
   }
 
-  const U = global.U;
   global.Animator = Animator;
 })(window);

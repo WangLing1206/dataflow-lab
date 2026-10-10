@@ -1,7 +1,8 @@
 # DataFlow Lab · 可视化数据分析实验室
 
-> 数据可视化作业 —— 一个把 **pandas 的数据处理逻辑** 变成 **可观看动画** 的网站。
+> 数据可视化作业 —— 把 **pandas 的数据处理逻辑** 变成 **可观看动画** 的网站。
 > 不止给结果，而是把「扫描 → 比较 → 标记 → 删除 → 填充 → 聚合 → 落定」的全过程逐步演出来。
+> **中英双语 · 明暗主题 · 28 个 pandas 操作 · 7 种可切换图表**
 
 ![总览](docs/images/01-overview.png)
 
@@ -15,7 +16,7 @@
 DataFlow Lab 的做法是：
 1. 把每个 pandas 操作拆解成一条 **动画剧本（trace）**；
 2. 用表格作为舞台，逐格「探针扫描」、逐行「标记 / 淡出 / 坍缩 / 重排」；
-3. 同步更新右侧的分布图、描述统计、等价 pandas 代码与变化量；
+3. 同步更新右侧的图表、描述统计、等价 pandas 代码与变化量；
 4. 你可以在任意步骤 **暂停 / 单步 / 回退 / 调速 / 跳转**，看清每一步的逻辑。
 
 ---
@@ -23,28 +24,35 @@ DataFlow Lab 的做法是：
 ## 2. 功能一览
 
 ### 数据源
-- **默认数据集**：学生成绩（30 行，含缺失值与重复行）——打开即用
+- **默认数据集**：学生成绩 / Student Scores（24 行 × 8 列，含缺失值与重复行）——打开即用
 - **内置数据集切换**：门店销售 / 比赛评分（去极值经典场景）/ 鸢尾花 iris
-- **导入替换**：本地文件导入（`.csv / .tsv / .txt / .json`）、直接**粘贴**数据
-- **导出**：把当前处理结果导出为 CSV
+- **导入替换**：本地文件（`.csv / .tsv / .txt / .json`）、直接**粘贴**数据
+- **导出**：把当前处理结果导出为 CSV（带 BOM，Excel 不乱码）
 
-### 13 个 pandas 风格操作（全部带动画演示）
+### 28 个 pandas 风格操作（全部带动画演示）
 
-| 分类 | 操作 | 对应 pandas | 动画亮点 |
-|---|---|---|---|
-| 观察 | 查看数据 | `df.head/tail/sample` | 逐行掠过，报出形状与类型 |
-| 观察 | 统计摘要 | `df.describe()` | 逐列累计 count/sum，实时滚动结果 |
-| 整理 | 选择列 | `df[[...]]` | 未选中的列先变暗再消失 |
-| 整理 | 条件筛选 | `df[df[c] >= v]` | 逐行比较，命中变绿、未命中变红后剔除 |
-| 整理 | 排序 | `df.sort_values` | 先读键，再 FLIP 平滑重排整张表 |
-| 整理 | 重命名列 | `df.rename` | 表头 3D 翻转 |
-| 整理 | 随机采样 | `df.sample(n, seed)` | 随机抽中/落选可视化 |
-| 清洗 | 去除重复 | `drop_duplicates` | 逐行计算「指纹」，重复行标黄后删除 |
-| 清洗 | 缺失值处理 | `dropna / fillna` | 缺失单元格标红，填充时数字滚动到位 |
-| 清洗 | **去除极值** | `nlargest/nsmallest/IQR/clip` | **HUD 探针实时显示当前最小/最大，扫描完成后标记并删除** |
-| 变换 | 新增计算列 | `df.assign` | 新列从右侧滑入，逐行数字滚动生成 |
-| 变换 | 归一化 | min-max / z-score | 先扫极值（或均值标准差）再展示公式与结果 |
-| 分析 | 分组聚合 | `groupby().agg()` | 同组上色 → 聚拢 → 坍缩成汇总行 |
+| 分类 | 操作 |
+|---|---|
+| 观察 (2) | 查看数据 `head/tail/sample`、统计摘要 `describe()` |
+| 整理 (8) | 选择列、删除列、重命名列、条件筛选、排序、随机采样、类型转换 `astype`、宽表转长表 `melt` |
+| 清洗 (5) | 去除重复、缺失值处理（`dropna/fillna/ffill/bfill/interpolate`）、去除极值（`nlargest/nsmallest/IQR/clip`）、值替换、删除无用列 |
+| 变换 (7) | 新增计算列 `assign`、归一化 / 标准化、数学变换（`log/sqrt/abs/round/square`）、文本处理 `str.*`、日期特征 `dt.*`、排名 `rank`、窗口计算（`cumsum/diff/pct_change/rolling`） |
+| 分析 (4) | 分组聚合 `groupby().agg()`、透视表 `pivot_table()`、值计数 `value_counts()`、相关性矩阵 `corr()` |
+| 合并 (2) | 合并关联表 `merge()`（内置关联表）、纵向拼接 `concat()`（内置补充表） |
+
+### 7 种图表，随分析联动
+直方图 · 折线图 · 散点图 · 条形图 · 箱线图 · 饼图 · 相关性热力图，
+外加「**自动**」模式：当前步骤在处理哪一列，图表就自动展示哪一列；
+分组聚合 / 透视表 / 值计数后自动切柱状图，相关性矩阵后自动切热力图。
+
+### 中英双语（内容完全一致）
+顶栏一键切换 `中文 / EN`：界面文案、28 个操作名与说明、参数名与选项、每一步解说、HUD 探针、
+提示消息、**数据集名称与说明、表头列名、以及单元格内的文本数据**全部同步；
+切换语言后流水线按列 key 重新计算，结果与动画完全一致。
+
+### 明暗主题 + 现代简约配色
+中性灰底 + 单一靛蓝主色（浅色白底 / 深色中性炭黑），顶栏 `☀ / ☾` 一键切换并记忆，
+首次访问跟随系统偏好；图表颜色随主题同步刷新。
 
 ### 交互与节奏控制
 - 流水线卡片：点击加入 / 参数即时编辑 / 上移下移 / 删除
@@ -54,8 +62,8 @@ DataFlow Lab 的做法是：
 - **自动演示**按钮：一键播放一套完整的、带解说的分析流程
 
 ### 同步面板
-数据概览 KPI（含与上一步的增减）· 分布图（直方图 / 柱状图，柱高平滑过渡）·
-描述统计表 · 等价 pandas 代码（当前步骤前全部代码）· 本步变化量
+数据概览 KPI（含与上一步的增减）· 7 种图表（可切）· 描述统计表 ·
+等价 pandas 代码（当前步骤前全部代码，可复制）· 本步变化量
 
 ---
 
@@ -63,27 +71,33 @@ DataFlow Lab 的做法是：
 
 ```
 web6/
-├── index.html                 # 页面骨架
+├── index.html                 # 页面骨架（含 i18n 钩子）
 ├── assets/
-│   ├── css/main.css           # 设计系统 + 全部动画样式
+│   ├── css/main.css           # 设计令牌 + 明暗主题 + 全部动画样式
 │   └── js/
 │       ├── util.js            # 工具（可取消 sleep、数字补间、toast…）
-│       ├── dataframe.js       # 轻量 DataFrame 引擎：CSV/JSON 解析、类型推断、统计
-│       ├── datasets.js        # 4 个内置数据集 + 自动演示脚本
-│       ├── operations.js      # 13 个 pandas 风格操作 + 动画剧本生成
+│       ├── i18n.js            # 双语核心（词条 / t() / say() / onChange）
+│       ├── i18n-ext.js        # 操作名、参数、解说词、数据集词条
+│       ├── dataframe.js       # 轻量 DataFrame：列 key/name、CSV/JSON 解析、类型推断、统计
+│       ├── datasets.js        # 4 个内置数据集（中英双语）+ 关联表 + 演示脚本
+│       ├── operations.js      # 28 个 pandas 风格操作 + 动画剧本生成
 │       ├── tableview.js       # 表格视图：探针/标记/删除/坍缩/FLIP 重排
-│       ├── animator.js        # 动画剧本播放器（支持取消/调速/瞬时模式）
-│       ├── charts.js          # SVG 图表（直方图/柱状图）
+│       ├── animator.js        # 动画剧本播放器（可取消/调速/瞬时模式）
+│       ├── charts.js          # SVG 图表 7 种（hist/line/scatter/bar/box/pie/corr）
 │       ├── pipeline.js        # 流水线模型 + 操作库/步骤卡片 UI
 │       ├── importer.js        # 导入导出
-│       └── app.js             # 主控：状态机、播放控制、面板联动
+│       └── app.js             # 主控：状态机、播放控制、面板联动、主题与语言
+├── tools/
+│   ├── record-demo.mjs        # Playwright 自动录屏（含虚拟光标与字幕）
+│   └── publish-github-api.mjs # 通过 REST API 发布（备用部署通道）
 └── docs/
     ├── 亮点说明文档.md          # 关键亮点说明（交付文档）
     ├── 视频讲解稿.md            # 录屏分镜与讲解词
-    └── images/                 # 截图
+    ├── images/                 # 截图
+    └── video/                  # 演示视频
 ```
 
-**零依赖、零构建**：纯原生 HTML/CSS/JS（ES5 级语法 + 全局命名空间），
+**零依赖、零构建**：纯原生 HTML/CSS/JS（全局命名空间 + 经典 `<script>`），
 直接双击 `index.html` 即可运行，也天然适配 GitHub Pages。
 
 ---
@@ -133,33 +147,38 @@ node tools/publish-github-api.mjs <用户名>/dataflow-lab
 `operations.js` 里每个操作 `run(df, params)` 返回：
 
 ```js
-{ df: 处理后的新数据, code: '等价 pandas 代码', trace: [ 事件序列 ], summary: {...} }
+{ df: 处理后的新数据, code: '等价 pandas 代码', trace: [ 事件序列 ] }
 ```
 
-事件类型：`say`（解说）· `scan`（扫描探针）· `mark`（标记）· `drop`（删除）·
-`fill`（填充补间）· `addcol`（新列滑入）· `removecol` · `rename` · `group` · `agg`（分组坍缩）· `settle`（落定）。
+事件类型：`say` · `scan` · `mark` · `drop` · `fill` · `addcol` · `removecol` · `rename` ·
+`reorder` · `group` · `agg` · `settle` · `hud` · `wait`。
 
-### 2) 数据与视图解耦：稳定的行 id
-每一行都有唯一 `_id`，删除 / 排序 / 聚合后视图仍能追踪到「这一行去哪了」，
-因此 FLIP 重排、行坍缩、行飞入等动画都能精确命中目标。
+### 2) 列 key + 行 id 双稳定
+列是 `{ key, name, type }`：key 语言无关（步骤参数存 key），name 随语言变化（显示用）；
+每行有唯一 `_id`，删除 / 排序 / 聚合后视图仍能追踪这一行，FLIP 重排与坍缩动画才能精确命中。
 
 ### 3) 扫描探针 = 「寻找逻辑可视化」
 `scan` 事件带 `track: 'minmax' | 'flag'`：
-- `minmax`：边扫边维护「当前最小/最大」，HUD 实时刷新，蓝色/红色标记会**移动**，
-  扫描结束留在真正的最值上 —— 这正是「最大值是怎么被找到的」。
-- `flag`：边扫边判定命中/剔除（筛选、去重、IQR 异常值）。
+- `minmax`：边扫边维护「当前最小 / 最大」，HUD 实时刷新，蓝 / 红标记随扫描**移动**，
+  扫描结束停在真正的最值上 —— 这正是「最大值是怎么被找到的」；
+- `flag`：边扫边判定命中 / 剔除（筛选、去重、IQR 异常值）。
 
 ### 4) 可取消的异步播放
-播放器持有 `token`，暂停 / 跳转 / 参数修改都会 `cancel()` 打断动画链，
+播放器持有 `token`，暂停 / 跳转 / 改参数 / 切语言都会 `cancel()` 打断动画链，
 保证状态永远一致、不出现动画错位。
+
+### 5) 双语与双主题都是「数据驱动」
+文案 → `I18n.t(key)`；颜色 → CSS 变量（JS 端用 `getComputedStyle` 取值）；
+因此新增一个操作或一张图表，不需要重复写两套语言 / 两套配色。
 
 ---
 
 ## 7. 已知边界
 
-- 为保证动画流畅，表格最多渲染前 **400 行**（统计与计算仍基于全量数据）。
-- 类型推断支持 `number / date / string` 三类；日期列按文本参与分组与图表横轴。
-- 运算符仅覆盖作业演示所需范围（>、>=、<、<=、==、!=、包含、为空、不为空）。
+- 表格最多渲染前 **400 行**以保证动画流畅（统计与计算仍基于全量数据，界面有提示）。
+- 类型推断支持 `number / date / string`；日期列按文本参与分组与图表横轴。
+- 运算符仅覆盖演示所需范围（`>` `>=` `<` `<=` `==` `!=` 包含 / 为空 / 不为空）。
+- 演示视频为 WebM(VP8)，浏览器与 VLC 可直接播放；需要 MP4 时用一条 ffmpeg 命令转换（见第 8 节）。
 
 ---
 
@@ -168,17 +187,17 @@ node tools/publish-github-api.mjs <用户名>/dataflow-lab
 | 交付项 | 说明 |
 |---|---|
 | 网站链接 | <https://wangling1206.github.io/dataflow-lab/> |
-| 源代码 | `DataFlow-Lab-源码.zip`（不含 node_modules，纯静态资源） |
-| 视频 | `docs/video/DataFlow-Lab-demo.webm`（3 分 37 秒，1280×760，含字幕与讲解要点；配套讲解稿：`docs/视频讲解稿.md`） |
+| 源代码 | `DataFlow-Lab-源码.zip`（纯静态资源，不含 node_modules） |
+| 视频 | `docs/video/DataFlow-Lab-demo.webm`（约 4 分钟，1280×760，含虚拟光标与字幕；讲解稿：`docs/视频讲解稿.md`） |
 | 文档 | `docs/亮点说明文档.md` |
 
 > **关于视频格式**：录像由 Playwright 自动生成，输出为 WebM（VP8）。
-> Chrome / Edge / Firefox / VLC / PotPlayer 均可直接播放；若需要 MP4，执行一条命令即可转换：
+> Chrome / Edge / Firefox / VLC / PotPlayer 均可直接播放；若需要 MP4：
 >
 > ```bash
 > ffmpeg -i docs/video/DataFlow-Lab-demo.webm -c:v libx264 -crf 23 -pix_fmt yuv420p docs/video/DataFlow-Lab-demo.mp4
 > ```
 >
-> 视频中的画面字幕与网站自带的解说条已覆盖全部讲解要点，静音观看也能看懂；
+> 视频中的画面字幕 + 网站自带解说条已覆盖全部讲解要点，静音观看也能看懂；
 > 需要人声讲解时，按 `docs/视频讲解稿.md` 的分镜逐段配音即可（总时长 ≤ 5 分钟）。
 > 视频可通过 `node tools/record-demo.mjs` 一键重新录制。

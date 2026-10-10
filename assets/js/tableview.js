@@ -5,6 +5,7 @@
   'use strict';
   const { el, sleep, fmt } = global.U;
   const { isMissing } = global.DF;
+  const I18n = global.I18n;
 
   const MAX_RENDER = 400;
   const GROUP_CLS = ['group-a', 'group-b', 'group-c', 'group-d', 'group-e'];
@@ -24,17 +25,16 @@
       this.rowMap = new Map();
       this.container.innerHTML = '';
 
-      const names = df.names();
       const shown = df.rows.length > MAX_RENDER ? df.rows.slice(0, MAX_RENDER) : df.rows;
-      const cols = `58px repeat(${names.length}, minmax(112px, 1fr))`;
+      const cols = `58px repeat(${df.columns.length}, minmax(112px, 1fr))`;
 
       const table = el('div', { class: 'dtable', style: `--cols:${cols}` });
       const thead = el('div', { class: 'dthead' });
       thead.appendChild(el('div', { class: 'dth', text: '#' }));
-      names.forEach((n) => {
-        const th = el('div', { class: 'dth', 'data-col': n }, [
-          el('span', { text: n }),
-          el('span', { class: 'dtype', text: df.typeOf(n) === 'number' ? 'num' : 'str' }),
+      df.columns.forEach((c) => {
+        const th = el('div', { class: 'dth', 'data-col': c.key }, [
+          el('span', { text: c.name }),
+          el('span', { class: 'dtype', text: c.type === 'number' ? I18n.t('ui.typeNum') : I18n.t('ui.typeStr') }),
         ]);
         thead.appendChild(th);
       });
@@ -44,18 +44,18 @@
       shown.forEach((r, i) => {
         const tr = el('div', { class: 'dtr', 'data-id': r._id });
         tr.appendChild(el('div', { class: 'dtd rowidx', text: String(i) }));
-        names.forEach((n) => {
-          const v = r[n];
+        df.columns.forEach((c) => {
+          const v = r[c.key];
           const td = el('div', {
             class: 'dtd' + (typeof v === 'number' ? ' num' : '') + (isMissing(v) ? ' is-null' : ''),
-            'data-col': n,
+            'data-col': c.key,
             text: isMissing(v) ? '' : (typeof v === 'number' ? fmt(v) : String(v)),
-            title: isMissing(v) ? '缺失值' : String(v),
+            title: isMissing(v) ? I18n.t('ui.missingCell') : String(v),
           });
           tr.appendChild(td);
         });
         if (!opts.silent) {
-          const delay = Math.min(i * 8, 420);
+          const delay = Math.min(i * 6, 220);
           tr.classList.add('entering');
           tr.style.animationDelay = delay + 'ms';
         }
@@ -69,7 +69,7 @@
         this.container.appendChild(el('div', {
           class: 'muted small',
           style: 'padding:8px 12px',
-          text: `为保证动画流畅，仅渲染前 ${MAX_RENDER} 行（共 ${df.rows.length} 行），统计与计算仍基于全量数据。`,
+          text: I18n.t('ui.renderLimit', { n: MAX_RENDER, t: df.rows.length }),
         }));
       }
       this.body = tbody;
@@ -128,17 +128,16 @@
       r.classList.add(cls);
       setTimeout(() => r.classList.remove(cls), 760);
     }
-    setCell(id, col, value, tween) {
+    setCell(id, col, value, tween, ms) {
       const c = this.cellEl(id, col);
       if (!c) return Promise.resolve();
-      const old = isMissing(this.df.rows.find((r) => r._id === id)?.[col]) ? null : null;
       c.classList.remove('is-null');
       c.classList.add('changed');
       setTimeout(() => c.classList.remove('changed'), 900);
       const target = typeof value === 'number' ? value : null;
       if (tween && target !== null) {
         const from = Number(c.textContent) || 0;
-        return global.U.tweenNumber(from, target, 520, (v) => { c.textContent = fmt(v); })
+        return global.U.tweenNumber(from, target, ms || 520, (v) => { c.textContent = fmt(v); })
           .then(() => { c.textContent = fmt(target); });
       }
       c.textContent = isMissing(value) ? '' : (typeof value === 'number' ? fmt(value) : String(value));
