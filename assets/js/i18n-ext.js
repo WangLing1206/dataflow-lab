@@ -188,6 +188,8 @@
     'ui.readySub': '每一步都会展示内部的寻找、比较与删除逻辑，而不是直接给出结果。',
     'ui.allDone': '全部 {n} 步执行完毕',
     'ui.allDoneSub': '最终结果：{shape}，可点击「导出」保存处理后的数据',
+    'msg.brush': '已选中 {n} 行 {label}（图表 ⇄ 表格联动）',
+    'hud.keep': '保留', 'hud.drop': '剔除', 'hud.found': '已发现',
   });
 
   /* ---------------- English ---------------- */
@@ -366,5 +368,7 @@
     'ui.readySub': 'Every step shows its internal search, compare and drop logic instead of just the result.',
     'ui.allDone': 'All {n} steps finished',
     'ui.allDoneSub': 'Final result: {shape} — click "Export" to save the processed data',
+    'msg.brush': 'Selected {n} rows {label} (chart ⇄ table brushing)',
+    'hud.keep': 'keep', 'hud.drop': 'drop', 'hud.found': 'found',
   });
 })(window);

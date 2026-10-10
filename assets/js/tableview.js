@@ -11,11 +11,55 @@
   const GROUP_CLS = ['group-a', 'group-b', 'group-c', 'group-d', 'group-e'];
 
   class TableView {
-    constructor(container) {
+    constructor(container, hooks) {
       this.container = container;
       this.df = null;
       this.rowMap = new Map();   // rowId -> tr
       this.probeCell = null;
+      this.hooks = hooks || {};
+      this.hoverId = null;
+
+      // 行 ↔ 图 联动：悬停行 → 高亮图上对应的图元；点击行 → 选中
+      this.container.addEventListener('mouseover', (e) => {
+        const tr = e.target.closest && e.target.closest('.dtr');
+        if (!tr) return;
+        const id = tr.dataset.id;
+        if (id !== this.hoverId) {
+          this.hoverId = id;
+          if (this.hooks.onRowHover) this.hooks.onRowHover(id);
+        }
+      });
+      this.container.addEventListener('mouseleave', () => {
+        this.hoverId = null;
+        if (this.hooks.onRowHover) this.hooks.onRowHover(null);
+      });
+      this.container.addEventListener('click', (e) => {
+        const tr = e.target.closest && e.target.closest('.dtr');
+        if (tr && this.hooks.onRowClick) this.hooks.onRowClick(tr.dataset.id);
+      });
+    }
+
+    /** 选中若干行（由图形刷选触发） */
+    selectRows(ids) {
+      this.container.querySelectorAll('.dtr.is-sel').forEach((n) => n.classList.remove('is-sel'));
+      const set = new Set((ids || []).map(String));
+      let first = null;
+      // 行 id 可能是数字或字符串，两种都要能命中
+      const find = (id) => this.rowMap.get(id) || this.rowMap.get(Number(id)) || this.rowMap.get(String(id));
+      set.forEach((id) => {
+        const tr = find(id);
+        if (tr) { tr.classList.add('is-sel'); if (!first) first = tr; }
+      });
+      if (first) {
+        const box = first.getBoundingClientRect(), cb = this.container.getBoundingClientRect();
+        if (box.top < cb.top || box.bottom > cb.bottom) {
+          this.container.scrollTop += box.top - cb.top - cb.height;
+        }
+      }
+      return set.size;
+    }
+    clearSelection() {
+      this.container.querySelectorAll('.dtr.is-sel').forEach((n) => n.classList.remove('is-sel'));
     }
 
     /* ---------------- 渲染 ---------------- */
@@ -28,6 +72,14 @@
       const shown = df.rows.length > MAX_RENDER ? df.rows.slice(0, MAX_RENDER) : df.rows;
       const cols = `58px repeat(${df.columns.length}, minmax(112px, 1fr))`;
 
+      // 数值列的极值（用于单元格内嵌数据条）
+      const range = {};
+      df.columns.forEach((c) => {
+        if (c.type !== 'number') return;
+        const v = df.values(c.key);
+        if (v.length) range[c.key] = { min: global.DF.Stats.min(v), max: global.DF.Stats.max(v) };
+      });
+
       const table = el('div', { class: 'dtable', style: `--cols:${cols}` });
       const thead = el('div', { class: 'dthead' });
       thead.appendChild(el('div', { class: 'dth', text: '#' }));
@@ -36,6 +88,15 @@
           el('span', { text: c.name }),
           el('span', { class: 'dtype', text: c.type === 'number' ? I18n.t('ui.typeNum') : I18n.t('ui.typeStr') }),
         ]);
+        // 表头内嵌分布迷你图（sparkline）——一眼看出这一列的分布形态
+        if (c.type === 'number' && global.Charts) {
+          const vals = df.values(c.key);
+          if (vals.length > 1) {
+            const spark = global.Charts.sparkline(vals, 92, 20, getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#4f6ef7');
+            spark.classList.add('th-spark');
+            th.appendChild(spark);
+          }
+        }
         thead.appendChild(th);
       });
       table.appendChild(thead);
@@ -52,6 +113,11 @@
             text: isMissing(v) ? '' : (typeof v === 'number' ? fmt(v) : String(v)),
             title: isMissing(v) ? I18n.t('ui.missingCell') : String(v),
           });
+          // 单元格内嵌数据条：长度 = 该值在这一列中的相对大小
+          if (typeof v === 'number' && range[c.key]) {
+            const rg = range[c.key], span = (rg.max - rg.min) || 1;
+            td.appendChild(el('i', { class: 'cellbar', style: `width:${Math.max(2, Math.round((v - rg.min) / span * 100))}%` }));
+          }
           tr.appendChild(td);
         });
         if (!opts.silent) {

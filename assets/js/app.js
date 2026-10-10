@@ -31,10 +31,14 @@
     initTheme();
     initLang();
 
-    app.view = new global.TableView($('#tableScroll'));
+    app.view = new global.TableView($('#tableScroll'), {
+      onRowHover: (id) => global.Charts.hot($('#chartBox'), id),   // 行 → 图
+      onRowClick: (id) => { app.view.selectRows([id]); },
+    });
     app.animator = new global.Animator(app.view, {
       say: onSay,
       hud: onHud,
+      chart: (phase, data) => chartLive(phase, data),
       progress: (p) => { $('#narrProgress').style.width = (p * 100).toFixed(1) + '%'; },
     });
 
@@ -427,15 +431,25 @@
     if (!df) return;
     const keys = df.keys();
     const tabs = $('#chartTabs');
-    const avail = global.Charts.available(df);
-    const sig = avail.join(',') + '|' + app.chartType + '|' + I.lang;
+    // 第 0 步（原始数据）没有"处理前"，此时不提供前后对比图
+    const prev = app.viewIndex > 0 ? global.Pipe.dfAt(app.state, app.viewIndex - 1) : null;
+    const avail = global.Charts.available(df, { prev });
+    const rec = global.Charts.recommend(df);
+    const sig = avail.join(',') + '|' + app.chartType + '|' + I.lang + '|' + rec;
     if (tabs.dataset.sig !== sig) {
       tabs.innerHTML = '';
-      avail.forEach((t) => {
-        tabs.appendChild(el('button', {
-          class: 'chart-tab' + (t === app.chartType ? ' is-on' : ''),
-          'data-type': t, text: global.Charts.typeName(t),
-        }));
+      global.Charts.GROUPS.forEach((g) => {
+        const list = avail.filter((t) => global.Charts.GROUP_OF[t] === g);
+        if (!list.length) return;
+        tabs.appendChild(el('span', { class: 'chart-group', text: global.Charts.groupName(g) }));
+        list.forEach((t) => {
+          tabs.appendChild(el('button', {
+            class: 'chart-tab' + (t === app.chartType ? ' is-on' : '') + (t === rec ? ' is-rec' : ''),
+            'data-type': t,
+            title: t === rec ? I.t('chart.recommend') : global.Charts.typeName(t),
+            text: (t === rec ? '★ ' : '') + global.Charts.typeName(t),
+          }));
+        });
       });
       tabs.dataset.sig = sig;
     }
@@ -468,8 +482,54 @@
     if ($('#chartY').value !== String(rx.y || '')) $('#chartY').value = rx.y || '';
     $('#chartX').title = I.t('chart.x'); $('#chartY').title = I.t('chart.y');
 
-    global.Charts.render($('#chartBox'), df, { type: app.chartType, xKey: rx.x, yKey: rx.y }, $('#chartLegend'));
+    // 矩阵型图表给更高的画布，保证可读性
+    $('#chartBox').classList.toggle('is-tall', ['splom', 'corr', 'missmap', 'profile', 'histmulti'].indexOf(rx.type) >= 0);
+    global.Charts.render(
+      $('#chartBox'), df,
+      { type: app.chartType, xKey: rx.x, yKey: rx.y },
+      $('#chartLegend'),
+      { prev, onSelect: onChartSelect }
+    );
+    updateInsight(df, { yKey: rx.y });
   }
+
+  /** 点击图形 → 选中并定位到对应数据行（刷选联动） */
+  function onChartSelect(ids, label) {
+    const n = app.view.selectRows(ids);
+    toast(I.t('msg.brush', { n, label: label || '' }), 1800);
+  }
+
+  /** 图下自动洞察：用图形读出来的结论 */
+  function updateInsight(df, opts) {
+    const box = $('#chartInsight');
+    if (!box) return;
+    const list = global.Charts.insight(df, opts);
+    box.innerHTML = '';
+    if (!list.length) return;
+    box.appendChild(el('span', { class: 'insight-tag', text: '💡 ' + I.t('chart.insight') }));
+    list.forEach((s) => box.appendChild(el('span', { class: 'insight-item', text: s })));
+  }
+
+  /** 动画过程驱动图表：扫描生长 / 删除掉落 / 填充补值 */
+  function chartLive(phase, data) {
+    if (!app.state.base) return;
+    const df = app.currentDf();
+    let viewDf = df;
+    let live = null;
+    if (phase === 'scan') {
+      live = data;
+    } else if (phase === 'drop') {
+      const set = new Set((data.ids || []).map(String));
+      try {
+        viewDf = new D.DataFrame(df.rows.filter((r) => !set.has(String(r._id))), df.columns, Object.assign({}, df.meta));
+      } catch (e) { viewDf = df; }
+    }
+    if (phase !== 'drop') app.view.clearSelection && app.view.clearSelection();
+    const prev = app.viewIndex > 0 ? global.Pipe.dfAt(app.state, app.viewIndex - 1) : null;
+    const rx = global.Charts.resolve({ type: app.chartType, xKey: app.chartX, yKey: app.chartY }, viewDf);
+    global.Charts.render($('#chartBox'), viewDf, { type: app.chartType, xKey: rx.x, yKey: rx.y }, $('#chartLegend'), { prev, live, onSelect: onChartSelect });
+  }
+  app.chartLive = chartLive;
 
   function updateDescribe(df) {
     const box = $('#describeBox');

@@ -440,7 +440,11 @@ button, select, input, textarea { font-family: inherit; font-size: inherit; colo
 .kpi.up b { color: var(--ok); } .kpi.down b { color: var(--danger); }
 
 /* 图表 */
-.chart-tabs { display: flex; flex-wrap: wrap; gap: 3px; }
+.chart-tabs { display: flex; flex-wrap: wrap; align-items: center; gap: 3px; }
+.chart-group {
+  font-size: 9.5px; color: var(--muted); letter-spacing: .6px; font-weight: 600;
+  padding: 0 5px 0 2px; margin-top: 3px;
+}
 .chart-tab {
   border: 1px solid var(--border); background: var(--surface-2); color: var(--text-2);
   padding: 2px 7px; border-radius: 6px; cursor: pointer; font-size: 10.5px;
@@ -448,12 +452,22 @@ button, select, input, textarea { font-family: inherit; font-size: inherit; colo
 }
 .chart-tab:hover { border-color: var(--border-strong); color: var(--text); }
 .chart-tab.is-on { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+.chart-tab.is-rec { border-color: color-mix(in srgb, var(--warn) 60%, var(--border)); color: var(--warn); font-weight: 600; }
+.chart-tab.is-rec.is-on { background: var(--warn); border-color: var(--warn); color: #fff; }
+.chart-insight { margin-top: 7px; display: flex; flex-direction: column; gap: 4px; }
+.insight-tag { font-size: 10px; font-weight: 700; color: var(--warn); }
+.insight-item {
+  font-size: 10.5px; line-height: 1.5; color: var(--text-2);
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: 6px; padding: 4px 7px;
+}
 .chart-controls { display: flex; gap: 6px; margin-bottom: 7px; }
 .chart-controls select {
   flex: 1; min-width: 0; background: var(--surface-2); border: 1px solid var(--border);
   border-radius: 6px; padding: 3px 6px; font-size: 11px;
 }
-.chart-box { height: 196px; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--r-sm); overflow: hidden; }
+.chart-box { height: 224px; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--r-sm); overflow: hidden; transition: height .25s var(--ease); }
+.chart-box.is-tall { height: 300px; }
 .chart-svg { display: block; }
 .chart-empty { display: grid; place-items: center; height: 100%; color: var(--muted); font-size: 12px; }
 .chart-legend { margin-top: 6px; font-size: 10.5px; color: var(--muted); min-height: 14px; }
@@ -470,6 +484,30 @@ button, select, input, textarea { font-family: inherit; font-size: inherit; colo
 .chart-svg .cell { opacity: 0; }
 .chart-svg.in .cell { opacity: 1; transition: opacity .5s var(--ease); }
 .axis-text { font-family: var(--font); }
+/* 刷选联动：只有图元可点击，其余装饰元素不拦截鼠标 */
+.chart-svg { pointer-events: none; }
+.chart-svg .mark { pointer-events: auto; cursor: pointer; transition: opacity .18s var(--ease), stroke .18s var(--ease); }
+.chart-svg .mark:hover { opacity: 1; stroke: var(--warn); stroke-width: 2; }
+.chart-svg .mark.is-hot { stroke: var(--accent); stroke-width: 2.4; opacity: 1; }
+
+/* 表头内嵌分布迷你图 */
+.th-spark { position: absolute; right: 3px; bottom: 1px; opacity: .5; pointer-events: none; }
+.dth > span:first-child { position: relative; z-index: 1; overflow: hidden; text-overflow: ellipsis; }
+
+/* 单元格内嵌数据条 */
+.dtd.num { position: relative; }
+.cellbar {
+  position: absolute; left: 6px; bottom: 3px; height: 2px; border-radius: 2px;
+  background: var(--accent); opacity: .45; pointer-events: none;
+  transition: width .4s var(--ease);
+}
+.dtd.is-null .cellbar { display: none; }
+
+/* 行选中（图形刷选） */
+.dtr.is-sel {
+  background: color-mix(in srgb, var(--warn) 22%, transparent) !important;
+  box-shadow: inset 3px 0 0 var(--warn);
+}
 
 /* 描述统计 */
 .desc-table { width: 100%; border-collapse: collapse; font-size: 11px; font-variant-numeric: tabular-nums; }

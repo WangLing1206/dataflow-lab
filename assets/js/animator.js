@@ -115,11 +115,13 @@
       const col = ev.col;
       let minV = Infinity, maxV = -Infinity, minId = null, maxId = null;
       let pass = 0, fail = 0, idx = 0;
+      const vals = [];
 
       for (const it of items) {
         idx++;
         view.probe(it.id, col);
         if (ev.track === 'minmax' && it.v !== null && it.v !== undefined) {
+          vals.push(Number(it.v));
           if (it.v < minV) {
             if (minId !== null) { view.unmarkCell(minId, col, 'mark-min'); view.unmarkRow(minId, 'row-min'); }
             minV = it.v; minId = it.id;
@@ -162,6 +164,12 @@
             rows: [{ label: I.t('hud.read'), value: `${idx} / ${items.length}` }],
           });
         }
+        // 图表参与过程：扫描时同步画出统计量的形成（每 2 项刷新一次，避免抖动）
+        if (this.hooks.chart && (idx % 2 === 0 || idx === items.length)) {
+          this.hooks.chart('scan', ev.track === 'minmax'
+            ? { mode: 'minmax', values: vals.slice(), total: items.length }
+            : { mode: 'flag', keep: pass, drop: fail, total: items.length });
+        }
         await t(per);
       }
       view.clearProbe();
@@ -188,7 +196,10 @@
       this.hooks.say && this.hooks.say({ badge: badgeText('del'), title: s.title, sub: s.sub });
       await t(560);
       const gap = clamp(320 / ids.length, 22, 90);
-      await view.dropRows(ids, { gap, token: this.token });
+      const p = view.dropRows(ids, { gap, token: this.token });
+      // 图表同步：被删除的行从图形中"掉出"
+      if (this.hooks.chart) this.hooks.chart('drop', { ids });
+      await p;
     }
 
     async evFill(ev, t) {
@@ -197,6 +208,7 @@
       for (const c of cells) {
         view.scrollTo(c.id);
         await view.setCell(c.id, c.col, c.v, true, Math.round(520 / this.speed));
+        if (this.hooks.chart) this.hooks.chart('fill', { col: c.col });
         await t(ev.per || 180);
       }
       await t(200);
@@ -301,6 +313,7 @@
         view.setData(result.df);
         await t(360);
       }
+      if (this.hooks.chart) this.hooks.chart('settle', {});
     }
   }
 

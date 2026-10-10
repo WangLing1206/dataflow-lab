@@ -86,7 +86,7 @@ async function injectOverlay() {
     cap.id = '__cap';
     Object.assign(cap.style, {
       position: 'fixed', left: '50%', bottom: '58px', transform: 'translateX(-50%)',
-      maxWidth: '940px', padding: '10px 20px', borderRadius: '999px',
+      maxWidth: '960px', padding: '10px 20px', borderRadius: '999px',
       background: 'rgba(18,22,31,.9)', border: '1px solid rgba(79,110,247,.5)',
       color: '#f4f6f9', font: '600 16px/1.5 "PingFang SC","Microsoft YaHei",system-ui,sans-serif',
       letterSpacing: '.3px', boxShadow: '0 12px 30px rgba(0,0,0,.35)', backdropFilter: 'blur(6px)',
@@ -130,7 +130,7 @@ async function playOnce(seconds) {
 async function chart(type) {
   const b = page.locator(`.chart-tab[data-type="${type}"]`);
   if (await b.count()) await clickLoc(b);
-  await wait(1200);
+  await wait(1400);
 }
 
 /* ---------------- 分镜 ---------------- */
@@ -144,155 +144,161 @@ await page.mouse.move(760, 420, { steps: 20 });
 await wait(600);
 
 /* 镜头 1 · 开场 */
-caption('中英双语 · 明暗主题 · 28 个 pandas 操作，每一步都演给你看');
+caption('中英双语 · 明暗主题 · 28 个 pandas 操作 · 14 种图表，每一步都演给你看');
 stamp('镜头1 开场');
-await wait(1500);
+await wait(1600);
 await moveTo(loc('#datasetSelect'));
-await wait(1400);
+await wait(1200);
 await moveTo(loc('.op-library'));
-await wait(2000);
-caption('左侧操作库：观察 / 整理 / 清洗 / 变换 / 分析 / 合并，共 28 个操作');
-await wait(4000);
+await wait(1600);
+caption('左侧是 28 个 pandas 操作；右侧是图表与自动洞察，图表会跟着分析走');
+await wait(5000);
 
-/* 镜头 2 · 去除极值（核心） */
-caption('去除极值：先扫全列找最小最大值，再标记、逐行删除');
+/* 镜头 2 · 去除极值（核心：图形化的寻找逻辑） */
+caption('去除极值：表格探查针扫描，图表同时画出「当前最小/最大」的轨迹');
 stamp('镜头2 去除极值');
 await addOp('去除极值');
-await wait(2500);
+await wait(2400);
 await clickLoc(loc('#btnRunAll'));
-await wait(1000);
-await page.mouse.move(1180, 480, { steps: 14 });
-await wait(4200);
-caption('扫描中：探针实时显示「当前最小 / 当前最大」，标记会随扫描移动');
-await wait(5200);
-caption('扫描结束 → 极值行被标记，随后逐行删除，其余行自然上移');
+await page.mouse.move(1180, 300, { steps: 16 });
+await wait(400);
+caption('蓝线是「当前最小」的下降轨迹，红线是「当前最大」的上升轨迹 —— 最值是这样被找到的');
+await wait(3100);
+caption('扫描结束 → 极值行被标记、逐行删除，图表里的柱子也跟着掉落');
 await wait(5200);
 stamp('镜头2 完成');
 
-/* 镜头 3 · 缺失值 + 去重 */
-caption('缺失值：先标红定位，再用均值滚入填充');
-stamp('镜头3 缺失值');
+/* 镜头 3 · 缺失值 + 去重（图形参与过程） */
+caption('缺失值与重复行：逐格标红定位 → 均值滚入填充 / 重复指纹标黄删除');
+stamp('镜头3 清洗');
 await addOp('缺失值处理');
-await wait(2200);
+await wait(2000);
 await playOnce(9);
-caption('重复行：逐行计算指纹，重复的标黄后删除');
-stamp('镜头3 去重');
 await addOp('去除重复');
-await wait(1800);
+await wait(1600);
 await playOnce(8);
 
 /* 镜头 4 · 派生列 + 排序 */
 caption('新增计算列从右侧滑入 · 排序是整表平滑重排');
-stamp('镜头4 新增列');
+stamp('镜头4 派生列');
 await addOp('新增计算列');
-await wait(1800);
-await playOnce(7);
-stamp('镜头4 排序');
-await addOp('排序');
 await wait(1600);
+await playOnce(7);
+await addOp('排序');
+await wait(1400);
 await playOnce(7);
 
 /* 镜头 5 · 分组聚合 + 图表联动 */
 caption('分组聚合：同组上色 → 聚拢 → 坍缩成汇总行');
 stamp('镜头5 分组聚合');
 await addOp('分组聚合');
-await wait(1600);
-try {
-  const row = page.locator('.step-card.is-active .param-row').filter({ has: page.locator('label:text-is("聚合列")') });
-  const sel = row.locator('select');
-  await clickLoc(sel);
-  await sel.selectOption('total');
-  await wait(900);
-} catch (e) { console.log('  (聚合列默认值已可用)'); }
-await clickLoc(loc('#btnPlay'));
-await wait(3500);
-caption('同组上色后聚拢在一起，然后逐组坍缩成一行汇总');
-await wait(9000);
-caption('图表自动联动：切换到「按班级的汇总柱状图」');
-await wait(3000);
-await chart('bar');
-await wait(2500);
-stamp('镜头5 完成');
-
-/* 镜头 6 · 多图切换 + 相关性热力图 */
-caption('7 种图表可自由切换：直方图 / 折线 / 散点 / 条形 / 箱线 / 饼图 / 相关性热力图');
-stamp('镜头6 图表');
-await clickLoc(loc('#btnFirst'));
-await wait(2200);
-await chart('box');
-await chart('pie');
-await chart('scatter');
-await moveTo(loc('#datasetSelect'));
-await page.selectOption('#datasetSelect', 'iris');
-await wait(1600);
-caption('换一套数据：鸢尾花 —— 用「相关性矩阵」看变量之间的线性关系');
-await addOp('相关性矩阵');
 await wait(1400);
 await clickLoc(loc('#btnPlay'));
-await wait(5200);
-await chart('corr');
-await wait(2500);
-stamp('镜头6 完成');
-
-/* 镜头 7 · 中英双语 */
-caption('一键切换中英文：界面、操作名、参数、解说全部同步');
-stamp('镜头7 语言切换');
-await clickLoc(loc('#langSeg button[data-lang="en"]'));
-await wait(2200);
-caption('English mode: every label, operation and narration is translated');
-await chart('scatter');
-await wait(2600);
-await clickLoc(loc('#langSeg button[data-lang="zh"]'));
-await wait(1800);
-
-/* 镜头 8 · 明暗主题 */
-caption('明 / 暗主题一键切换，现代简约配色');
-stamp('镜头8 主题');
-await clickLoc(loc('#btnTheme'));
-await wait(2600);
+await wait(3300);
+caption('同组上色后聚拢，再逐组坍缩成一行汇总');
+await wait(8500);
+caption('图表自动联动成「按班级的汇总柱状图」，并给出自动洞察');
+await wait(3000);
 await chart('bar');
 await wait(2200);
-await clickLoc(loc('#btnTheme'));
+stamp('镜头5 完成');
+
+/* 镜头 6 · 图形化数据质量与多变量关系 */
+caption('用图形做数据分析：缺失值热力图 / 数据画像 / 散点矩阵 / 处理前后对比');
+stamp('镜头6 分析级图表');
+await clickLoc(loc('#btnFirst'));
+await wait(2000);
+await chart('missmap');
+await wait(2200);
+caption('缺失值热力图：一眼看出缺失集中在哪一列、是否成片');
+await wait(3200);
+await chart('profile');
+await wait(2200);
+caption('数据画像：每列的类型、缺失率、基数与分布迷你图');
+await wait(3200);
+await moveTo(loc('#datasetSelect'));
+await page.selectOption('#datasetSelect', 'iris');
+await wait(1500);
+await chart('splom');
+await wait(2400);
+caption('散点矩阵：下三角是相关系数，一眼找到强相关的变量对');
+await wait(3400);
+stamp('镜头6 完成');
+
+/* 镜头 7 · 图 ⇄ 表 刷选联动 + 表内微可视化 */
+caption('点击图形可以直接选中并定位到对应数据行（图表 ⇄ 表格刷选）');
+stamp('镜头7 联动');
+await chart('hist');
+await wait(1600);
+const dots = page.locator('#chartBox .mark');
+if (await dots.count() > 2) {
+  const target = dots.nth(2);
+  await moveTo(target);
+  await target.click({ force: true });
+  await wait(2600);
+}
+caption('表头有分布迷你图，单元格底部有数据条 —— 不用读数字也能比较大小');
+await wait(4200);
+stamp('镜头7 完成');
+
+/* 镜头 8 · 中英双语 */
+caption('一键切换中英文：界面、操作名、参数、解说、数据全部同步');
+stamp('镜头8 语言');
+await clickLoc(loc('#langSeg button[data-lang="en"]'));
+await wait(2400);
+caption('English mode: every label, operation, narration and even the data is translated');
+await wait(3600);
+await clickLoc(loc('#langSeg button[data-lang="zh"]'));
 await wait(1600);
 
-/* 镜头 9 · 自动演示 */
+/* 镜头 9 · 明暗主题 */
+caption('明 / 暗主题一键切换，现代简约配色');
+stamp('镜头9 主题');
+await clickLoc(loc('#btnTheme'));
+await wait(2600);
+await chart('hist');
+await wait(1800);
+await clickLoc(loc('#btnTheme'));
+await wait(1400);
+
+/* 镜头 10 · 自动演示 */
 caption('一键「自动演示」：完整跑一遍真实分析流程');
-stamp('镜头9 自动演示');
+stamp('镜头10 自动演示');
 await moveTo(loc('#datasetSelect'));
 await page.selectOption('#datasetSelect', 'scoring');
-await wait(1600);
+await wait(1500);
 await clickLoc(loc('#btnDemo'));
-await wait(9000);
-caption('填充缺失 → 去重 → 去极值 → 计算均分 → 排序');
+await wait(8000);
+caption('填充缺失 → 去重 → 去极值 → 计算均分 → 排序，右侧统计与图表同步刷新');
+await wait(18000);
+caption('每一步都逐步演示，而不是直接给出结果');
 await wait(20000);
-caption('每一步都逐步演示，右侧统计与图表同步刷新');
-await wait(22000);
-stamp('镜头9 完成');
+stamp('镜头10 完成');
 
-/* 镜头 10 · 导入导出 */
+/* 镜头 11 · 导入导出 */
 caption('可以粘贴 / 导入自己的 CSV·JSON，处理结果一键导出');
-stamp('镜头10 导入导出');
+stamp('镜头11 导入导出');
 await clickLoc(loc('#btnPaste'));
 await wait(1200);
 await page.fill('#pasteArea', '城市,最高温,最低温,降水\n北京,31,19,12\n上海,29,22,38\n广州,33,26,55\n成都,27,18,9');
-await wait(1800);
+await wait(1600);
 await clickLoc(loc('#btnPasteOk'));
-await wait(4000);
+await wait(3600);
 await clickLoc(loc('#btnExport'));
-await wait(2500);
+await wait(2400);
 
-/* 镜头 11 · 收尾 */
-caption('28 个 pandas 操作 · 7 种图表 · 中英双语 · 明暗主题 · 零依赖零构建');
-stamp('镜头11 收尾');
+/* 镜头 12 · 收尾 */
+caption('28 个 pandas 操作 · 14 种图表 · 自动洞察 · 中英双语 · 明暗主题 · 零依赖零构建');
+stamp('镜头12 收尾');
 await moveTo(loc('#datasetSelect'));
 await page.selectOption('#datasetSelect', 'students');
-await wait(1800);
+await wait(1600);
 await addOp('去除极值');
-await wait(1400);
+await wait(1200);
 await clickLoc(loc('#btnRunAll'));
-await wait(9000);
-await page.mouse.move(800, 500, { steps: 10 });
-await wait(3500);
+await wait(8500);
+await page.mouse.move(800, 480, { steps: 10 });
+await wait(3000);
 stamp('录制结束');
 
 await context.close();
