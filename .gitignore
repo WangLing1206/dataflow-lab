@@ -7,6 +7,9 @@ package-lock.json
 # 演示视频与中间产物：不随网站上架、不进源码包（本地保留，可用 tools/ 脚本重新生成）
 docs/video/
 
+# 课程参考材料（校徽、往期文档）：仅本地参考，不上架
+paper/
+
 # 系统
 Thumbs.db
 .DS_Store
