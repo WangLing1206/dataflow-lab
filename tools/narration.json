@@ -1,8 +1,11 @@
 {
+  "provider": "http",
   "voiceZH": "Microsoft Huihui Desktop",
   "voiceEN": "Microsoft Zira Desktop",
   "rateZH": 3,
   "rateEN": 0,
+  "spdZH": 6,
+  "spdEN": 3,
   "gap": 0.9,
   "segments": [
     {

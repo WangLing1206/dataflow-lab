@@ -99,9 +99,9 @@ web6/
 │       ├── importer.js        # 导入导出
 │       └── app.js             # 主控：状态机、播放控制、面板联动、主题与语言
 ├── tools/
-│   ├── narration.json         # 解说词（16 段，中英双语）
-│   ├── tts-sapi.ps1           # Windows 内置语音合成（离线）
-│   ├── tts-narrate.mjs        # 逐段合成 + 拼接音轨 + 输出每段时长
+│   ├── narration.json         # 解说词（16 段，中英双语 + 语速参数）
+│   ├── tts-sapi.ps1           # Windows 内置语音合成（离线回退通道）
+│   ├── tts-narrate.mjs        # 逐段合成（在线语音）+ 拼接音轨 + 输出每段时长
 │   ├── record-demo.mjs        # Playwright 自动录屏（按解说时间轴调度画面）
 │   ├── mux-video.mjs          # 音画合成 → MP4（H.264 + AAC）
 │   └── publish-github-api.mjs # 通过 REST API 发布（备用部署通道）
@@ -211,21 +211,22 @@ node tools/publish-github-api.mjs <用户名>/dataflow-lab
 |---|---|
 | 网站链接 | <https://wangling1206.github.io/dataflow-lab/> |
 | 源代码 | `DataFlow-Lab-源码.zip`（纯静态资源，不含 node_modules） |
-| 视频 | `docs/video/DataFlow-Lab-demo.mp4`（**3 分 47 秒 · 1280×760 · 带中文/英文语音讲解**，含虚拟光标与字幕；讲解稿：`docs/视频讲解稿.md`） |
+| 视频 | `docs/video/DataFlow-Lab-demo.mp4`（**4 分 35 秒 · 1280×760 · H.264 + AAC · 带中文/英文语音讲解**，含虚拟光标与字幕；讲解稿：`docs/视频讲解稿.md`） |
 | 文档 | `docs/亮点说明文档.md` |
 
-> **视频是怎么做出来的**（三步，全部脚本化，可一键重做）：
+> **视频是怎么做出来的**（全部脚本化，可一键重做）：
 >
 > ```bash
 > python -m http.server 8123                        # 1) 起本地服务
-> node tools/tts-narrate.mjs                        # 2) 生成解说音轨（Windows 内置语音，离线）
+> node tools/tts-narrate.mjs                        # 2) 生成解说音轨（在线语音，失败自动回退内置语音）
 > node tools/record-demo.mjs --url http://127.0.0.1:8123/index.html --out docs/video
 > node tools/mux-video.mjs                          # 3) 音画合成 → MP4（H.264 + AAC）
 > ```
 >
-> - 解说词在 `tools/narration.json`（16 段，中文 15 段 + 英文 1 段）；
-> - `tts-narrate.mjs` 调用 Windows 内置 TTS（Microsoft Huihui / Zira）离线合成，输出 `narration.wav` 与每段时长；
-> - `record-demo.mjs` **按解说时间轴调度画面**（"说到哪、演到哪"），并记录音画对齐偏移；
-> - `mux-video.mjs` 用 ffmpeg 合成 MP4，视频中的字幕 + 站内解说条与语音同步。
+> - 解说词在 `tools/narration.json`（16 段，中文 15 段 + 英文 1 段，含语速参数）；
+> - `tts-narrate.mjs` 逐段调用语音接口合成 MP3（`provider: "http"`），再用 ffmpeg 统一成 WAV 拼接，
+>   输出 `narration.wav` 与每段起止时间；网络不可用时自动回退 Windows 内置语音（`--provider sapi`）；
+> - `record-demo.mjs` **按解说时间轴调度画面**（"说到哪、演到哪"），并记录音画对齐偏移 `lead`；
+> - `mux-video.mjs` 用 ffmpeg 以 `-itsoffset lead` 合成 MP4，语音与画面字幕严格同步。
 >
 > 若要改成自己的讲解，只改 `tools/narration.json` 的文本后重跑上面三步即可。
