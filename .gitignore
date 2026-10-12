@@ -4,6 +4,9 @@ node_modules/
 package-lock.json
 *.zip
 
+# TTS 分段中间产物（可由 node tools/tts-narrate.mjs 重新生成）
+docs/video/.tts/
+
 # 系统
 Thumbs.db
 .DS_Store

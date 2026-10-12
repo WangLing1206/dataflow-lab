@@ -99,7 +99,11 @@ web6/
 │       ├── importer.js        # 导入导出
 │       └── app.js             # 主控：状态机、播放控制、面板联动、主题与语言
 ├── tools/
-│   ├── record-demo.mjs        # Playwright 自动录屏（含虚拟光标与字幕）
+│   ├── narration.json         # 解说词（16 段，中英双语）
+│   ├── tts-sapi.ps1           # Windows 内置语音合成（离线）
+│   ├── tts-narrate.mjs        # 逐段合成 + 拼接音轨 + 输出每段时长
+│   ├── record-demo.mjs        # Playwright 自动录屏（按解说时间轴调度画面）
+│   ├── mux-video.mjs          # 音画合成 → MP4（H.264 + AAC）
 │   └── publish-github-api.mjs # 通过 REST API 发布（备用部署通道）
 └── docs/
     ├── 亮点说明文档.md          # 关键亮点说明（交付文档）
@@ -197,7 +201,7 @@ node tools/publish-github-api.mjs <用户名>/dataflow-lab
 - 表格最多渲染前 **400 行**以保证动画流畅（统计与计算仍基于全量数据，界面有提示）。
 - 类型推断支持 `number / date / string`；日期列按文本参与分组与图表横轴。
 - 运算符仅覆盖演示所需范围（`>` `>=` `<` `<=` `==` `!=` 包含 / 为空 / 不为空）。
-- 演示视频为 WebM(VP8)，浏览器与 VLC 可直接播放；需要 MP4 时用一条 ffmpeg 命令转换（见第 8 节）。
+- 演示视频为 MP4（H.264 + AAC），带中文/英文语音讲解，浏览器、PPT、剪辑软件均可直接使用。
 
 ---
 
@@ -207,16 +211,21 @@ node tools/publish-github-api.mjs <用户名>/dataflow-lab
 |---|---|
 | 网站链接 | <https://wangling1206.github.io/dataflow-lab/> |
 | 源代码 | `DataFlow-Lab-源码.zip`（纯静态资源，不含 node_modules） |
-| 视频 | `docs/video/DataFlow-Lab-demo.webm`（3 分 36 秒，1280×760，含虚拟光标与字幕；讲解稿：`docs/视频讲解稿.md`） |
+| 视频 | `docs/video/DataFlow-Lab-demo.mp4`（**3 分 47 秒 · 1280×760 · 带中文/英文语音讲解**，含虚拟光标与字幕；讲解稿：`docs/视频讲解稿.md`） |
 | 文档 | `docs/亮点说明文档.md` |
 
-> **关于视频格式**：录像由 Playwright 自动生成，输出为 WebM（VP8）。
-> Chrome / Edge / Firefox / VLC / PotPlayer 均可直接播放；若需要 MP4：
+> **视频是怎么做出来的**（三步，全部脚本化，可一键重做）：
 >
 > ```bash
-> ffmpeg -i docs/video/DataFlow-Lab-demo.webm -c:v libx264 -crf 23 -pix_fmt yuv420p docs/video/DataFlow-Lab-demo.mp4
+> python -m http.server 8123                        # 1) 起本地服务
+> node tools/tts-narrate.mjs                        # 2) 生成解说音轨（Windows 内置语音，离线）
+> node tools/record-demo.mjs --url http://127.0.0.1:8123/index.html --out docs/video
+> node tools/mux-video.mjs                          # 3) 音画合成 → MP4（H.264 + AAC）
 > ```
 >
-> 视频中的画面字幕 + 网站自带解说条已覆盖全部讲解要点，静音观看也能看懂；
-> 需要人声讲解时，按 `docs/视频讲解稿.md` 的分镜逐段配音即可（总时长 ≤ 5 分钟）。
-> 视频可通过 `node tools/record-demo.mjs` 一键重新录制。
+> - 解说词在 `tools/narration.json`（16 段，中文 15 段 + 英文 1 段）；
+> - `tts-narrate.mjs` 调用 Windows 内置 TTS（Microsoft Huihui / Zira）离线合成，输出 `narration.wav` 与每段时长；
+> - `record-demo.mjs` **按解说时间轴调度画面**（"说到哪、演到哪"），并记录音画对齐偏移；
+> - `mux-video.mjs` 用 ffmpeg 合成 MP4，视频中的字幕 + 站内解说条与语音同步。
+>
+> 若要改成自己的讲解，只改 `tools/narration.json` 的文本后重跑上面三步即可。
