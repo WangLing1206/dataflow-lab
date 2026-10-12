@@ -6,6 +6,8 @@
   "rateEN": 0,
   "spdZH": 6,
   "spdEN": 3,
+  "pitchZH": 0.84,
+  "pitchEN": 0.88,
   "gap": 0.9,
   "segments": [
     {

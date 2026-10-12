@@ -161,6 +161,7 @@
       'paste.title': '粘贴数据',
       'help.title': '使用说明',
       'doc.video': '演示视频', 'doc.highlight': '亮点说明文档', 'doc.script': '视频讲解稿', 'doc.readme': 'README',
+      'doc.markdown': 'Markdown 版',
 
       'colname.total': '总分', 'colname.avg': '平均分', 'colname.rank': '排名',
       'colname.norm': '{col}_norm', 'colname.z': '{col}_z', 'colname.log': '{col}_log',
@@ -325,6 +326,7 @@
       'paste.title': 'Paste data',
       'help.title': 'How to use',
       'doc.video': 'demo video', 'doc.highlight': 'highlights', 'doc.script': 'video script', 'doc.readme': 'README',
+      'doc.markdown': 'Markdown',
 
       'colname.total': 'total', 'colname.avg': 'avg', 'colname.rank': 'rank',
       'colname.norm': '{col}_norm', 'colname.z': '{col}_z', 'colname.log': '{col}_log',

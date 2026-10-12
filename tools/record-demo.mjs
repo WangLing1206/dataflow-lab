@@ -36,10 +36,13 @@ const URL_ = args.url || 'http://127.0.0.1:8123/index.html';
 const OUT = path.resolve(ROOT, args.out || 'docs/video');
 fs.mkdirSync(OUT, { recursive: true });
 
-/* 解说时间轴 */
+/* 解说时间轴 + 字幕文本（字幕 = 配音原文，保证两者一致） */
 const narr = JSON.parse(fs.readFileSync(path.join(OUT, 'narration-dur.json'), 'utf8'));
 const SEG = {};
 narr.segments.forEach((s) => { SEG[s.id] = s; });
+const NARR = JSON.parse(fs.readFileSync(path.join(ROOT, 'tools', 'narration.json'), 'utf8'));
+const TEXT = {};
+NARR.segments.forEach((s) => { TEXT[s.id] = s.text; });
 
 const pw = loadPlaywright();
 const chromium = pw.chromium;
@@ -91,13 +94,13 @@ async function injectOverlay() {
     const cap = document.createElement('div');
     cap.id = '__cap';
     Object.assign(cap.style, {
-      position: 'fixed', left: '50%', bottom: '58px', transform: 'translateX(-50%)',
-      maxWidth: '960px', padding: '10px 20px', borderRadius: '999px',
-      background: 'rgba(18,22,31,.9)', border: '1px solid rgba(79,110,247,.5)',
-      color: '#f4f6f9', font: '600 16px/1.5 "PingFang SC","Microsoft YaHei",system-ui,sans-serif',
-      letterSpacing: '.3px', boxShadow: '0 12px 30px rgba(0,0,0,.35)', backdropFilter: 'blur(6px)',
+      position: 'fixed', left: '50%', bottom: '54px', transform: 'translateX(-50%)',
+      maxWidth: '940px', padding: '9px 18px', borderRadius: '14px',
+      background: 'rgba(18,22,31,.88)', border: '1px solid rgba(79,110,247,.5)',
+      color: '#f4f6f9', font: '600 15px/1.55 "PingFang SC","Microsoft YaHei",system-ui,sans-serif',
+      letterSpacing: '.2px', boxShadow: '0 12px 30px rgba(0,0,0,.35)', backdropFilter: 'blur(6px)',
       pointerEvents: 'none', zIndex: '99997', opacity: '0', transition: 'opacity .45s ease',
-      textAlign: 'center', whiteSpace: 'nowrap',
+      textAlign: 'center', whiteSpace: 'normal', lineHeight: '1.55',
     });
     document.body.appendChild(cap);
     window.__cap = (t) => {
@@ -147,48 +150,46 @@ await injectOverlay();
 T0 = Date.now();
 await page.mouse.move(760, 420, { steps: 20 });
 
-/* 镜头 1 · 开场（s1 23s） */
+/* 镜头 1 · 开场（s1） */
 await at('s1', async () => {
-  caption('DataFlow Lab · 把 pandas 的每一步处理演出来，用图形做数据分析');
+  caption(TEXT.s1);
   await moveTo(loc('#datasetSelect'));
   await wait(1500);
   await moveTo(loc('.op-library'));
-  await wait(1800);
-  caption('左侧 28 个操作 · 中间动画表格 · 右侧 14 种图表与自动洞察');
-  await wait(3000);
+  await wait(2000);
   await moveTo(loc('#chartBox'));
 });
 stamp('镜头1');
 
-/* 镜头 2 · 去除极值（s2a / s2b / s2c ≈ 33s） */
+/* 镜头 2 · 去除极值（s2a / s2b / s2c） */
 await at('s2a', async () => {
+  caption(TEXT.s2a);
   await addOp('去除极值');
   await wait(600);
-  caption('去除极值：去掉一个最高分、一个最低分');
 }, -1.4);
 await at('s2a', async () => {
   await clickLoc(loc('#btnRunAll'));
   await page.mouse.move(1180, 320, { steps: 14 });
 });
 await at('s2b', async () => {
-  caption('红线 = 当前最大值的上升轨迹，蓝线 = 当前最小值的下降轨迹');
+  caption(TEXT.s2b);
   await clickLoc(loc('.spd[data-speed="0.5"]'));
   await clickLoc(loc('#btnFirst'));
   await clickLoc(loc('#btnRunAll'));
   await page.mouse.move(1180, 260, { steps: 14 });
 });
 await at('s2c', async () => {
-  caption('扫描结束 → 极值行被标记并逐行删除');
+  caption(TEXT.s2c);
   await clickLoc(loc('#btnFirst'));
   await clickLoc(loc('#btnRunAll'));
   await page.mouse.move(760, 400, { steps: 12 });
 });
 stamp('镜头2');
 
-/* 镜头 3 · 清洗（s3 16s） */
+/* 镜头 3 · 清洗（s3） */
 await at('s3', async () => {
+  caption(TEXT.s3);
   await clickLoc(loc('.spd[data-speed="1"]'));
-  caption('缺失值标红 → 均值填充 · 重复行标黄 → 删除');
   await addOp('缺失值处理');
   await wait(500);
   await clickLoc(loc('#btnPlay'));
@@ -200,9 +201,9 @@ await at('s3', async () => {
 });
 stamp('镜头3');
 
-/* 镜头 4 · 派生列 + 排序（s4 13s） */
+/* 镜头 4 · 派生列 + 排序（s4） */
 await at('s4', async () => {
-  caption('新增计算列 · 排序（FLIP 平滑重排）');
+  caption(TEXT.s4);
   await addOp('新增计算列');
   await wait(400);
   await clickLoc(loc('#btnPlay'));
@@ -214,9 +215,9 @@ await at('s4', async () => {
 });
 stamp('镜头4');
 
-/* 镜头 5 · 分组聚合（s5 13s） */
+/* 镜头 5 · 分组聚合（s5） */
 await at('s5', async () => {
-  caption('分组聚合：上色 → 聚拢 → 坍缩成汇总行');
+  caption(TEXT.s5);
   await addOp('分组聚合');
   await wait(400);
   await clickLoc(loc('#btnPlay'));
@@ -225,11 +226,11 @@ await at('s5', async () => {
 });
 stamp('镜头5');
 
-/* 镜头 6 · 分析级图表（s6 17.6s） */
+/* 镜头 6 · 分析级图表（s6） */
 await at('s6', async () => {
+  caption(TEXT.s6);
   await clickLoc(loc('#btnFirst'));
   await wait(1500);
-  caption('14 种图表：缺失值热力图 / 数据画像 / 散点矩阵');
   await chart('missmap');
   await wait(2000);
   await chart('profile');
@@ -241,40 +242,39 @@ await at('s6', async () => {
 });
 stamp('镜头6');
 
-/* 镜头 7 · 刷选联动（s7 14.7s） */
+/* 镜头 7 · 刷选联动（s7） */
 await at('s7', async () => {
-  caption('点击图形 → 选中并定位到对应数据行（图表 ⇄ 表格）');
+  caption(TEXT.s7);
   await chart('hist');
   const marks = page.locator('#chartBox .mark');
   if (await marks.count() > 2) { await moveTo(marks.nth(2)); await marks.nth(2).click({ force: true }); }
   await wait(2500);
-  caption('表头分布迷你图 · 单元格数据条');
   await page.mouse.move(500, 520, { steps: 12 });
 });
 stamp('镜头7');
 
-/* 镜头 8 · 中英双语（s8zh 11.5s + s8en 10s） */
-await at('s8zh', async () => { caption('一键切换中英文 · 界面、操作、解说、数据全部同步'); });
+/* 镜头 8 · 中英双语（s8zh + s8en） */
+await at('s8zh', async () => { caption(TEXT.s8zh); });
 await at('s8en', async () => {
-  caption('English mode: every label, operation and narration is translated');
+  caption(TEXT.s8en);
   await clickLoc(loc('#langSeg button[data-lang="en"]'));
   await wait(2600);
   await chart('splom');
 });
 stamp('镜头8');
 
-/* 镜头 9 · 主题（s9 8.4s） */
+/* 镜头 9 · 主题（s9） */
 await at('s9', async () => {
+  caption(TEXT.s9);
   await clickLoc(loc('#langSeg button[data-lang="zh"]'));
   await wait(1200);
-  caption('明 / 暗主题一键切换 · 现代简约配色');
   await clickLoc(loc('#btnTheme'));
 });
 stamp('镜头9');
 
-/* 镜头 10 · 自动演示（s10 12.8s + s10b 10s） */
+/* 镜头 10 · 自动演示（s10 + s10b） */
 await at('s10', async () => {
-  caption('一键「自动演示」：完整跑一遍分析流程');
+  caption(TEXT.s10);
   await moveTo(loc('#datasetSelect'));
   await page.selectOption('#datasetSelect', 'scoring');
   await wait(1200);
@@ -282,14 +282,14 @@ await at('s10', async () => {
   await clickLoc(loc('#btnDemo'));
 });
 await at('s10b', async () => {
-  caption('填充缺失 → 去重 → 去极值 → 计算均分 → 排序');
+  caption(TEXT.s10b);
   await page.mouse.move(1180, 300, { steps: 12 });
 });
 stamp('镜头10');
 
-/* 镜头 11 · 导入导出（s11 9.3s） */
+/* 镜头 11 · 导入导出（s11） */
 await at('s11', async () => {
-  caption('粘贴 / 导入自己的 CSV·JSON，结果一键导出');
+  caption(TEXT.s11);
   await clickLoc(loc('#btnPaste'));
   await wait(900);
   await page.fill('#pasteArea', '城市,最高温,最低温,降水\n北京,31,19,12\n上海,29,22,38\n广州,33,26,55\n成都,27,18,9');
@@ -300,9 +300,9 @@ await at('s11', async () => {
 });
 stamp('镜头11');
 
-/* 镜头 12 · 结尾（s12 19s） */
+/* 镜头 12 · 结尾（s12） */
 await at('s12', async () => {
-  caption('零依赖零构建 · 每个操作返回一条「动画剧本」');
+  caption(TEXT.s12);
   await moveTo(loc('#datasetSelect'));
   await page.selectOption('#datasetSelect', 'students');
   await wait(1400);

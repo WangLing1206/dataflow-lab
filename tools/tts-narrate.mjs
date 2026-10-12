@@ -124,6 +124,15 @@ async function main() {
       const ok = await synthHTTP(s.text, s.lang, s.spd, s.mp3);
       if (ok) {
         execFileSync(FF, ['-y', '-loglevel', 'error', '-i', s.mp3, '-ar', '22050', '-ac', '1', s.wav], { stdio: 'ignore' });
+        // 在线语音只有女声（性别参数被忽略），用 -3 半音移调处理成男声质感（时长不变）
+        const pitch = s.lang === 'en' ? (cfg.pitchEN || 1) : (cfg.pitchZH || 1);
+        if (pitch && Math.abs(pitch - 1) > 0.01) {
+          const tmp = s.wav + '.raw.wav';
+          fs.renameSync(s.wav, tmp);
+          execFileSync(FF, ['-y', '-loglevel', 'error', '-i', tmp, '-af',
+            `asetrate=22050*${pitch},atempo=${(1 / pitch).toFixed(4)},aresample=22050`, s.wav], { stdio: 'ignore' });
+          fs.unlinkSync(tmp);
+        }
       }
       if (!ok || !fs.existsSync(s.wav)) {
         console.log(`  ! ${s.id} 在线合成失败，回退内置语音`);

@@ -106,11 +106,13 @@ web6/
 │   ├── mux-video.mjs          # 音画合成 → MP4（H.264 + AAC）
 │   └── publish-github-api.mjs # 通过 REST API 发布（备用部署通道）
 └── docs/
-    ├── 亮点说明文档.md          # 关键亮点说明（交付文档）
-    ├── 视频讲解稿.md            # 录屏分镜与讲解词
-    ├── images/                 # 截图
-    └── video/                  # 演示视频
+    ├── DataFlow-Lab-网站关键亮点说明.docx   # 关键亮点说明（Word 交付文档）
+    ├── 亮点说明文档.md                      # 同一内容的 Markdown 版
+    ├── 视频讲解稿.md                        # 录屏分镜与讲解词
+    └── images/                              # 文档配图
 ```
+
+> 演示视频（`docs/video/`）**不随网站上架、也不进源码包**，仅在本地保留，可用 `tools/` 下的脚本一键重新生成。
 
 **零依赖、零构建**：纯原生 HTML/CSS/JS（全局命名空间 + 经典 `<script>`），
 直接双击 `index.html` 即可运行，也天然适配 GitHub Pages。
@@ -201,7 +203,6 @@ node tools/publish-github-api.mjs <用户名>/dataflow-lab
 - 表格最多渲染前 **400 行**以保证动画流畅（统计与计算仍基于全量数据，界面有提示）。
 - 类型推断支持 `number / date / string`；日期列按文本参与分组与图表横轴。
 - 运算符仅覆盖演示所需范围（`>` `>=` `<` `<=` `==` `!=` 包含 / 为空 / 不为空）。
-- 演示视频为 MP4（H.264 + AAC），带中文/英文语音讲解，浏览器、PPT、剪辑软件均可直接使用。
 
 ---
 
@@ -209,12 +210,12 @@ node tools/publish-github-api.mjs <用户名>/dataflow-lab
 
 | 交付项 | 说明 |
 |---|---|
-| 网站链接 | <https://wangling1206.github.io/dataflow-lab/> |
-| 源代码 | `DataFlow-Lab-源码.zip`（纯静态资源，不含 node_modules） |
-| 视频 | `docs/video/DataFlow-Lab-demo.mp4`（**4 分 35 秒 · 1280×760 · H.264 + AAC · 带中文/英文语音讲解**，含虚拟光标与字幕；讲解稿：`docs/视频讲解稿.md`） |
-| 文档 | `docs/亮点说明文档.md` |
+| 网站链接 | <https://wangling1206.github.io/dataflow-lab/>（**不含视频**，站内只提供文档链接） |
+| 源代码压缩包 | `DataFlow-Lab-源码.zip` —— 只含网站运行代码：`index.html`、`assets/css/`、`assets/js/`、`README.md`、`.gitignore`、`.nojekyll` |
+| 演示视频 | `DataFlow-Lab-demo.mp4`（1280×760 · H.264 + AAC · 带语音讲解与同步字幕）——**单独交付，不随网站上架、不进源码包** |
+| 说明文档 | `docs/DataFlow-Lab-网站关键亮点说明.docx`（Word 版，排版参照课程规范：A4 / 页边距 2.5cm / 正文 12pt / 1.5 倍行距 / 章标题 16pt 居中 / 节标题 14pt / 图注 10.5pt） |
 
-> **视频是怎么做出来的**（全部脚本化，可一键重做）：
+> **演示视频是怎么做出来的**（全部脚本化，可一键重做；生成的视频只保存在本地 `docs/video/`）：
 >
 > ```bash
 > python -m http.server 8123                        # 1) 起本地服务
@@ -223,10 +224,11 @@ node tools/publish-github-api.mjs <用户名>/dataflow-lab
 > node tools/mux-video.mjs                          # 3) 音画合成 → MP4（H.264 + AAC）
 > ```
 >
-> - 解说词在 `tools/narration.json`（16 段，中文 15 段 + 英文 1 段，含语速参数）；
-> - `tts-narrate.mjs` 逐段调用语音接口合成 MP3（`provider: "http"`），再用 ffmpeg 统一成 WAV 拼接，
+> - 解说词在 `tools/narration.json`（16 段，中文 15 段 + 英文 1 段，含语速与音色参数）；
+> - **字幕与配音同源**：`record-demo.mjs` 直接读取解说词原文作为画面字幕，保证两者完全一致；
+> - `tts-narrate.mjs` 逐段合成语音（在线语音接口，可切换音色与语速），再统一为 22.05kHz 单声道 WAV 拼接，
 >   输出 `narration.wav` 与每段起止时间；网络不可用时自动回退 Windows 内置语音（`--provider sapi`）；
 > - `record-demo.mjs` **按解说时间轴调度画面**（"说到哪、演到哪"），并记录音画对齐偏移 `lead`；
-> - `mux-video.mjs` 用 ffmpeg 以 `-itsoffset lead` 合成 MP4，语音与画面字幕严格同步。
+> - `mux-video.mjs` 用 ffmpeg 以 `-itsoffset lead` 合成 MP4。
 >
 > 若要改成自己的讲解，只改 `tools/narration.json` 的文本后重跑上面三步即可。
